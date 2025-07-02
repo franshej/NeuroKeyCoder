@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">NeuroKeyCoder</string>
+    <string name="keyboard_name">NeuroKeyCoder Keyboard</string>
+    <string name="enable_keyboard">Enable Keyboard</string>
+    <string name="keyboard_settings">Keyboard Settings</string>
+    <string name="about_keyboard">About NeuroKeyCoder</string>
+</resources> 
