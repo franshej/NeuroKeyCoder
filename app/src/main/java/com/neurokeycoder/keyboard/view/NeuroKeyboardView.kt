@@ -25,11 +25,8 @@ class NeuroKeyboardView @JvmOverloads constructor(
     
     private fun setupKeyboard() {
         // First row: Q W E R T Y U I O P (with numbers above)
-        addRowWithNumbers(
-            listOf("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"),
-            listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
-        )
-        
+        addRow(listOf("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"))
+
         // Second row: A S D F G H J K L
         addRow(listOf("A", "S", "D", "F", "G", "H", "J", "K", "L"))
         
@@ -86,12 +83,70 @@ class NeuroKeyboardView @JvmOverloads constructor(
             thirdRow.addView(keyButton)
         }
         
-        // Backspace key - weight 1.0 (medium width)
-        val backspaceKey = createSpecialKeyButton("BACKSPACE", "⌫")
+        // Backspace key - weight 1.0 (medium width) with long press support
+        val backspaceKey = createBackspaceButton()
         backspaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 2.0f)
         thirdRow.addView(backspaceKey)
         
         addView(thirdRow)
+    }
+    
+    private fun createBackspaceButton(): android.widget.Button {
+        return android.widget.Button(context).apply {
+            this.text = "⌫"
+            layoutParams = LayoutParams(
+                LayoutParams.WRAP_CONTENT,
+                LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(1, 1, 1, 1)
+            }
+            setBackgroundResource(android.R.drawable.btn_default)
+            textSize = 14f
+            setTextColor(android.graphics.Color.BLACK)
+            
+            // Set up long press detection
+            setOnTouchListener { _, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        // Start continuous backspace
+                        startContinuousBackspace()
+                        true
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        // Stop continuous backspace
+                        stopContinuousBackspace()
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
+    }
+    
+    private var backspaceTimer: android.os.Handler? = null
+    private var backspaceRunnable: Runnable? = null
+    
+    private fun startContinuousBackspace() {
+        // Initial backspace
+        onKeyListener?.invoke("BACKSPACE")
+        
+        // Set up repeating backspace
+        backspaceTimer = android.os.Handler(android.os.Looper.getMainLooper())
+        backspaceRunnable = object : Runnable {
+            override fun run() {
+                onKeyListener?.invoke("BACKSPACE")
+                backspaceTimer?.postDelayed(this, 100) // Repeat every 100ms
+            }
+        }
+        backspaceTimer?.postDelayed(backspaceRunnable!!, 500) // Start repeating after 500ms
+    }
+    
+    private fun stopContinuousBackspace() {
+        backspaceRunnable?.let { runnable ->
+            backspaceTimer?.removeCallbacks(runnable)
+        }
+        backspaceTimer = null
+        backspaceRunnable = null
     }
     
     private fun addSpecialRow() {
