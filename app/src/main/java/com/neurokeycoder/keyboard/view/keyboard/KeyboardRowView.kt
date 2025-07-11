@@ -15,9 +15,7 @@ class KeyboardRowView @JvmOverloads constructor(
     
     private var onKeyClickListener: ((String) -> Unit)? = null
     private var originalKeys = listOf<String>()
-    private var originalNumbers = listOf<String>()
-    private var isUpperCase = false
-    private var hasNumbers = false
+    private var isShiftPressed = false
     
     init {
         orientation = HORIZONTAL
@@ -31,7 +29,6 @@ class KeyboardRowView @JvmOverloads constructor(
     
     fun setKeys(keys: List<String>) {
         originalKeys = keys
-        hasNumbers = false
         removeAllViews()
         
         keys.forEach { key ->
@@ -40,103 +37,82 @@ class KeyboardRowView @JvmOverloads constructor(
         }
     }
     
-    fun setKeysWithNumbers(letters: List<String>, numbers: List<String>) {
-        originalKeys = letters
-        originalNumbers = numbers
-        hasNumbers = true
-        removeAllViews()
-        
-        letters.forEachIndexed { index, letter ->
-            val keyButton = createKeyButtonWithNumber(letter, numbers.getOrNull(index) ?: "")
-            addView(keyButton)
+    private fun createKeyButton(displayText: String, originalKey: String): Button {
+        return Button(context).apply {
+            this.text = displayText
+            layoutParams = LayoutParams(
+                0,
+                LayoutParams.WRAP_CONTENT,
+                1f
+            ).apply {
+                setMargins(1, 1, 1, 1)
+            }
+            setBackgroundResource(android.R.drawable.btn_default)
+            textSize = 16f
+            setTextColor(android.graphics.Color.BLACK)
+            setOnClickListener {
+                onKeyClickListener?.invoke(originalKey)
+            }
         }
     }
     
     private fun createKeyButton(text: String): Button {
-        return Button(context).apply {
-            this.text = text
-            layoutParams = LayoutParams(
-                0,
-                LayoutParams.WRAP_CONTENT,
-                1f
-            ).apply {
-                setMargins(1, 1, 1, 1)
-            }
-            setBackgroundResource(android.R.drawable.btn_default)
-            textSize = 16f
-            setTextColor(android.graphics.Color.BLACK)
-            setOnClickListener {
-                onKeyClickListener?.invoke(text)
-            }
-        }
-    }
-    
-    private fun createKeyButtonWithNumber(letter: String, number: String): LinearLayout {
-        val container = LinearLayout(context).apply {
-            orientation = VERTICAL
-            gravity = Gravity.CENTER
-            layoutParams = LayoutParams(
-                0,
-                LayoutParams.WRAP_CONTENT,
-                1f
-            ).apply {
-                setMargins(1, 1, 1, 1)
-            }
-        }
-        
-        // Number text (small, top)
-        val numberText = TextView(context).apply {
-            this.text = number
-            textSize = 10f
-            gravity = Gravity.CENTER
-            setTextColor(android.graphics.Color.GRAY)
-            layoutParams = LayoutParams(
-                LayoutParams.WRAP_CONTENT,
-                LayoutParams.WRAP_CONTENT
-            )
-        }
-        
-        // Letter button
-        val letterButton = Button(context).apply {
-            this.text = letter
-            layoutParams = LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.WRAP_CONTENT
-            )
-            setBackgroundResource(android.R.drawable.btn_default)
-            textSize = 16f
-            setTextColor(android.graphics.Color.BLACK)
-            setOnClickListener {
-                onKeyClickListener?.invoke(letter)
-            }
-        }
-        
-        container.addView(numberText)
-        container.addView(letterButton)
-        
-        return container
+        return createKeyButton(text, text)
     }
     
     fun setOnKeyClickListener(listener: (String) -> Unit) {
         onKeyClickListener = listener
     }
     
-    fun updateCase(isUpperCase: Boolean) {
-        this.isUpperCase = isUpperCase
+    fun updateShift(isShiftPressed: Boolean) {
+        this.isShiftPressed = isShiftPressed
         removeAllViews()
         
-        if (hasNumbers) {
-            originalKeys.forEachIndexed { index, key ->
-                val displayText = if (isUpperCase) key else key.lowercase()
-                val keyButton = createKeyButtonWithNumber(displayText, originalNumbers.getOrNull(index) ?: "")
-                addView(keyButton)
-            }
-        } else {
-            originalKeys.forEach { key ->
-                val displayText = if (isUpperCase) key else key.lowercase()
-                val keyButton = createKeyButton(displayText)
-                addView(keyButton)
-            }
+        originalKeys.forEach { key ->
+            val displayText = if (isShiftPressed) getShiftedKey(key) else key
+            val keyButton = createKeyButton(displayText, key)
+            addView(keyButton)
+        }
+    }
+    
+    private fun getShiftedKey(key: String): String {
+        // For letters, toggle case. For symbols, get alternative symbols.
+        return when {
+            key.matches(Regex("[A-Z]")) -> key.lowercase()
+            key.matches(Regex("[a-z]")) -> key.uppercase()
+            else -> getShiftedSymbol(key)
+        }
+    }
+    
+    private fun getShiftedSymbol(symbol: String): String {
+        return when (symbol) {
+            "1" -> "!"
+            "2" -> "@"
+            "3" -> "#"
+            "4" -> "$"
+            "5" -> "%"
+            "6" -> "^"
+            "7" -> "&"
+            "8" -> "*"
+            "9" -> "("
+            "0" -> ")"
+            "+" -> "="
+            "-" -> "_"
+            "*" -> "×"
+            "/" -> "÷"
+            "=" -> "+"
+            "(" -> ")"
+            ")" -> "("
+            ";" -> ":"
+            "," -> "<"
+            "{" -> "["
+            "}" -> "]"
+            "[" -> "{"
+            "]" -> "}"
+            "<" -> "≤"
+            ">" -> "≥"
+            "&" -> "&&"
+            else -> symbol
         }
     }
 } 
