@@ -41,7 +41,10 @@ class NeuroKeyboardView @JvmOverloads constructor(
         // Third row: SHIFT + Z X C V B N M + BACKSPACE
         addThirdRow()
         
-        // Fourth row: Special keys
+        // Fourth row: Programming symbols
+        addProgrammingSymbolsRow()
+        
+        // Fifth row: Special keys
         addSpecialRow()
     }
     
@@ -62,8 +65,8 @@ class NeuroKeyboardView @JvmOverloads constructor(
         addSymbolSpecialRow()
     }
     
-    private fun addSymbolThirdRow() {
-        val thirdRow = LinearLayout(context).apply {
+    private fun addProgrammingSymbolsRow() {
+        val programmingRow = LinearLayout(context).apply {
             orientation = HORIZONTAL
             layoutParams = LayoutParams(
                 LayoutParams.MATCH_PARENT,
@@ -73,25 +76,62 @@ class NeuroKeyboardView @JvmOverloads constructor(
             }
         }
         
-        // Shift key - weight 1.0 (medium width)
-        val shiftKey = createSpecialKeyButton("SHIFT", "⇧")
-        shiftKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 2.0f)
-        thirdRow.addView(shiftKey)
-        
-        // More symbols: } | \ ~ ` ' "
-        val symbols = listOf("}", "|", "\\", "~", "`", "'", "\"")
+        // Programming symbols: ( ) { } [ ] & * + -
+        val symbols = listOf("(", ")", "{", "}", "[", "]", "&", "*", "+", "-")
         symbols.forEach { symbol ->
             val keyButton = createKeyButton(symbol)
-            keyButton.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
-            thirdRow.addView(keyButton)
+            keyButton.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
+            programmingRow.addView(keyButton)
         }
         
-        // Backspace key - weight 1.0 (medium width) with long press support
-        val backspaceKey = createBackspaceButton()
-        backspaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 2.0f)
-        thirdRow.addView(backspaceKey)
+        addView(programmingRow)
+    }
+    
+    private fun addSpecialRow() {
+        val specialRow = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            layoutParams = LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(2, 2, 2, 2)
+            }
+        }
         
-        addView(thirdRow)
+        // ?123 key
+        val numberKey = createSpecialKeyButton("?123", "?123")
+        numberKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
+        specialRow.addView(numberKey)
+        
+        // Comma key
+        val commaKey = createKeyButton(",")
+        commaKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
+        specialRow.addView(commaKey)
+        
+        // Space key (smaller)
+        val spaceKey = createSpaceButton()
+        spaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 2.0f)
+        specialRow.addView(spaceKey)
+        
+        // ; < keys
+        val semicolonKey = createKeyButton(";")
+        semicolonKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
+        specialRow.addView(semicolonKey)
+        
+        val lessThanKey = createKeyButton("<")
+        lessThanKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
+        specialRow.addView(lessThanKey)
+        
+        // > : keys
+        val greaterThanKey = createKeyButton(">")
+        greaterThanKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
+        specialRow.addView(greaterThanKey)
+        
+        val colonKey = createKeyButton(":")
+        colonKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
+        specialRow.addView(colonKey)
+        
+        addView(specialRow)
     }
     
     private fun addSymbolSpecialRow() {
@@ -126,6 +166,38 @@ class NeuroKeyboardView @JvmOverloads constructor(
         specialRow.addView(periodKey)
         
         addView(specialRow)
+    }
+    
+    private fun addSymbolThirdRow() {
+        val thirdRow = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            layoutParams = LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(2, 2, 2, 2)
+            }
+        }
+        
+        // Shift key - weight 1.0 (medium width)
+        val shiftKey = createSpecialKeyButton("SHIFT", "⇧")
+        shiftKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 2.0f)
+        thirdRow.addView(shiftKey)
+        
+        // More symbols: } | \ ~ ` ' "
+        val symbols = listOf("}", "|", "\\", "~", "`", "'", "\"")
+        symbols.forEach { symbol ->
+            val keyButton = createKeyButton(symbol)
+            keyButton.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
+            thirdRow.addView(keyButton)
+        }
+        
+        // Backspace key - weight 1.0 (medium width) with long press support
+        val backspaceKey = createBackspaceButton()
+        backspaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 2.0f)
+        thirdRow.addView(backspaceKey)
+        
+        addView(thirdRow)
     }
     
     private fun addRow(keys: List<String>) {
@@ -228,40 +300,6 @@ class NeuroKeyboardView @JvmOverloads constructor(
         }
         backspaceTimer = null
         backspaceRunnable = null
-    }
-    
-    private fun addSpecialRow() {
-        val specialRow = LinearLayout(context).apply {
-            orientation = HORIZONTAL
-            layoutParams = LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(2, 2, 2, 2)
-            }
-        }
-        
-        // ?123 key - weight 0.5 (small)
-        val numberKey = createSpecialKeyButton("?123", "?123")
-        numberKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
-        specialRow.addView(numberKey)
-        
-        // Comma key - weight 0.5 (small)
-        val commaKey = createKeyButton(",")
-        commaKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
-        specialRow.addView(commaKey)
-        
-        // Space key - weight 4.0 (very wide)
-        val spaceKey = createSpaceButton()
-        spaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 3.0f)
-        specialRow.addView(spaceKey)
-        
-        // Period key - weight 0.5 (small)
-        val periodKey = createKeyButton(".")
-        periodKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
-        specialRow.addView(periodKey)
-        
-        addView(specialRow)
     }
     
     private fun createKeyButton(text: String): android.widget.Button {
