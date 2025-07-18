@@ -19,6 +19,15 @@ class NeuroKeyboardView @JvmOverloads constructor(
     private var isShiftPressed = false
     private var isSymbolLayout = true
     
+    // LLM Suggestions
+    private val suggestionsRow: SuggestionsRowView by lazy {
+        SuggestionsRowView(context).apply {
+            setOnSuggestionClickListener { suggestion ->
+                onKeyListener?.invoke(suggestion)
+            }
+        }
+    }
+    
     init {
         orientation = VERTICAL
         setupKeyboard()
@@ -32,6 +41,9 @@ class NeuroKeyboardView @JvmOverloads constructor(
         removeAllViews()
         symbolRowViews.clear()
 
+        // Add LLM suggestions row at the top
+        addView(suggestionsRow)
+        
         // Fourth row: Programming symbols
         addProgrammingSymbolsRow()
         
@@ -48,6 +60,9 @@ class NeuroKeyboardView @JvmOverloads constructor(
     private fun setupSymbolLayout() {
         removeAllViews()
         symbolRowViews.clear()
+        
+        // Add LLM suggestions row at the top
+        addView(suggestionsRow)
         
         // First row: More symbols
         addRow(listOf("[", "]", "+", "-", "^", "?", "#", "'", "\""))
@@ -381,5 +396,13 @@ class NeuroKeyboardView @JvmOverloads constructor(
     fun switchToMainLayout() {
         isSymbolLayout = false
         setupMainLayout()
+    }
+    
+    fun updateSuggestions(suggestions: List<String>) {
+        suggestionsRow.updateSuggestions(suggestions)
+    }
+    
+    fun showLoadingSuggestions() {
+        suggestionsRow.showLoadingIndicator()
     }
 } 
