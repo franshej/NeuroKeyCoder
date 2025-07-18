@@ -86,39 +86,7 @@ class NeuroKeyboardService : InputMethodService() {
         return when {
             key.matches(Regex("[A-Z]")) -> key.lowercase()
             key.matches(Regex("[a-z]")) -> key.uppercase()
-            else -> getShiftedSymbol(key)
-        }
-    }
-    
-    private fun getShiftedSymbol(symbol: String): String {
-        return when (symbol) {
-            "1" -> "!"
-            "2" -> "@"
-            "3" -> "#"
-            "4" -> "$"
-            "5" -> "%"
-            "6" -> "^"
-            "7" -> "&"
-            "8" -> "*"
-            "9" -> "("
-            "0" -> ")"
-            "+" -> "="
-            "-" -> "_"
-            "*" -> "×"
-            "/" -> "÷"
-            "=" -> "+"
-            "(" -> ")"
-            ")" -> "("
-            ";" -> ":"
-            "," -> "<"
-            "{" -> "["
-            "}" -> "]"
-            "[" -> "{"
-            "]" -> "}"
-            "<" -> "≤"
-            ">" -> "≥"
-            "&" -> "&&"
-            else -> symbol
+            else -> key
         }
     }
     
