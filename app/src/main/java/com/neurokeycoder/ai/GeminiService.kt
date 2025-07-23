@@ -85,6 +85,7 @@ Rules:
 4. Consider the context to make relevant suggestions
 5. Examples of good suggestions: "void", "auto", "const", "return", "if", "else", "int", "float", "->", "::", "std", "cout", "endl", "vector", "string", "nullptr", "true", "false", "class", "struct", "template", "namespace", "using", "public", "private", "virtual", "override", "final", "static", "inline", "constexpr", "noexcept"
 6. Put a space after each suggestion if you think it's a good suggestion.
+7. Rank the suggestions and return them in order of relevance.
 
 Context: "$context"
 
