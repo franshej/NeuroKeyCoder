@@ -96,7 +96,7 @@ class SuggestionsRowView @JvmOverloads constructor(
             minimumHeight = 80
             
             setOnClickListener {
-                Log.d(TAG, "Suggestion clicked: '$text'")
+                Log.d(TAG, "Suggestion clicked: '$text' - will trigger smart replacement")
                 onSuggestionClickListener?.invoke(text)
             }
         }

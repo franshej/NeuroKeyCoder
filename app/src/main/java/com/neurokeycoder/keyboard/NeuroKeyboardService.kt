@@ -49,6 +49,7 @@ class NeuroKeyboardService : InputMethodService() {
     
     private fun handleKeyPress(key: String) {
         Log.d(TAG, "Key pressed: '$key'")
+        
         when (key) {
             "BACKSPACE" -> {
                 val ic = currentInputConnection
@@ -85,25 +86,14 @@ class NeuroKeyboardService : InputMethodService() {
                 // Switch back to main layout
                 keyboardView.switchToMainLayout()
             }
-            "GLOBE" -> {
-                // TODO: Switch input language
-                // For now, just output a placeholder
-                val ic = currentInputConnection
-                ic?.commitText("🌐", 1)
-            }
-            "SEARCH" -> {
-                val ic = currentInputConnection
-                ic?.performEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH)
-            }
-            "," -> {
-                val ic = currentInputConnection
-                ic?.commitText(",", 1)
-            }
-            "." -> {
-                val ic = currentInputConnection
-                ic?.commitText(".", 1)
-            }
             else -> {
+                // Check if this is a suggestion being applied (after handling special keys)
+                if (isApplyingSuggestion(key)) {
+                    applySuggestionWithSmartReplacement(key)
+                    return
+                }
+                
+                // Regular character input
                 val ic = currentInputConnection
                 val textToCommit = if (isShiftPressed) getShiftedKey(key) else key
                 ic?.commitText(textToCommit, 1)
@@ -239,6 +229,96 @@ class NeuroKeyboardService : InputMethodService() {
         
         Log.d(TAG, "Final context (length ${context.length}): '$context'")
         return context
+    }
+    
+    private fun isApplyingSuggestion(key: String): Boolean {
+        // Known special keywords that should NOT trigger smart replacement
+        val specialKeywords = setOf(
+            "BACKSPACE", "SPACE", "ENTER", "SHIFT", "?123", "ABC", 
+            "GLOBE", "SEARCH", ",", "."
+        )
+        
+        if (key in specialKeywords) {
+            return false
+        }
+        
+        // A suggestion is being applied if the key is longer than 1 character
+        // and contains letters (not just symbols like "{", "}", etc.)
+        // This covers cases like "cout", "return", "std::vector", etc.
+        return key.length > 1 && key.any { it.isLetter() }
+    }
+    
+    private fun applySuggestionWithSmartReplacement(suggestion: String) {
+        Log.d(TAG, "Applying suggestion with smart replacement: '$suggestion'")
+        
+        val ic = currentInputConnection ?: run {
+            Log.w(TAG, "No input connection for suggestion replacement")
+            return
+        }
+        
+        try {
+            // Get current word being typed
+            val currentWord = getCurrentPartialWord()
+            Log.d(TAG, "Current partial word: '$currentWord'")
+            
+            if (currentWord.isNotEmpty() && suggestion.startsWith(currentWord, ignoreCase = true)) {
+                // Smart replacement: delete the partial word and insert the full suggestion
+                val charsToDelete = currentWord.length
+                Log.d(TAG, "Smart replacement: deleting $charsToDelete chars and inserting '$suggestion'")
+                
+                ic.deleteSurroundingText(charsToDelete, 0)
+                ic.commitText(suggestion, 1)
+                
+                // Update typed context by removing the partial word and adding the suggestion
+                if (typedContext.endsWith(currentWord)) {
+                    typedContext.delete(typedContext.length - currentWord.length, typedContext.length)
+                }
+                typedContext.append(suggestion)
+                
+            } else {
+                // Regular insertion if no smart replacement needed
+                Log.d(TAG, "Regular insertion: '$suggestion'")
+                ic.commitText(suggestion, 1)
+                typedContext.append(suggestion)
+            }
+            
+            // Keep context within reasonable length
+            if (typedContext.length > MAX_CONTEXT_LENGTH) {
+                typedContext.delete(0, typedContext.length - MAX_CONTEXT_LENGTH)
+                Log.d(TAG, "Trimmed typed context to max length after suggestion")
+            }
+            
+            Log.d(TAG, "Updated typed context after suggestion: '${typedContext}'")
+            requestSuggestionsWithDelay()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error applying suggestion with smart replacement", e)
+            // Fallback to regular insertion
+            ic.commitText(suggestion, 1)
+            typedContext.append(suggestion)
+        }
+    }
+    
+    private fun getCurrentPartialWord(): String {
+        val ic = currentInputConnection ?: return ""
+        
+        try {
+            // Get text before cursor to find the current word being typed
+            val textBeforeCursor = ic.getTextBeforeCursor(50, 0) ?: return ""
+            Log.d(TAG, "Text before cursor for word detection: '$textBeforeCursor'")
+            
+            // Find the last word (sequence of letters/numbers/underscores)
+            val wordPattern = Regex("[a-zA-Z_][a-zA-Z0-9_]*$")
+            val match = wordPattern.find(textBeforeCursor)
+            val currentWord = match?.value ?: ""
+            
+            Log.d(TAG, "Detected current partial word: '$currentWord'")
+            return currentWord
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting current partial word", e)
+            return ""
+        }
     }
     
     override fun onDestroy() {
