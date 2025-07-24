@@ -30,7 +30,7 @@ class GeminiService(private val context: Context) {
         val apiKey = getApiKey()
         if (apiKey.isNotEmpty()) {
             generativeModel = GenerativeModel(
-                modelName = "gemini-2.0-flash",
+                modelName = "gemini-2.0-flash-lite",
                 apiKey = apiKey
             )
         }
@@ -80,12 +80,12 @@ You are a C++ code completion assistant. Based on the given code context, sugges
 
 Rules:
 1. Return ONLY 5 suggestions, each on a new line
-2. Each suggestion must be a single word, symbol, or short expression (no spaces except in function calls like "getInt()")
+2. Each suggestion must be a single word, symbol, or short expression
 3. Focus on C++ keywords, function names, variable names, operators, or common patterns
 4. Consider the context to make relevant suggestions
 5. Examples of good suggestions: "void", "auto", "const", "return", "if", "else", "int", "float", "->", "::", "std", "cout", "endl", "vector", "string", "nullptr", "true", "false", "class", "struct", "template", "namespace", "using", "public", "private", "virtual", "override", "final", "static", "inline", "constexpr", "noexcept"
-6. Put a space after each suggestion if you think it's a good suggestion.
 7. Rank the suggestions and return them in order of relevance.
+8. Look for variable names or function names and suggest them.
 
 Context: "$context"
 
