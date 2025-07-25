@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.LinearLayout
+import androidx.core.content.ContextCompat
 import com.neurokeycoder.R
 import com.neurokeycoder.keyboard.view.keyboard.KeyboardRow
 import com.neurokeycoder.keyboard.view.keyboard.KeyboardRowView
@@ -30,6 +31,8 @@ class NeuroKeyboardView @JvmOverloads constructor(
     
     init {
         orientation = VERTICAL
+        setBackgroundResource(R.drawable.keyboard_background)
+        setPadding(16, 16, 16, 16)
         setupKeyboard()
     }
     
@@ -272,11 +275,13 @@ class NeuroKeyboardView @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT,
                 LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(1, 1, 1, 1)
+                setMargins(4, 4, 4, 4)
             }
-            setBackgroundResource(android.R.drawable.btn_default)
-            textSize = 14f
-            setTextColor(android.graphics.Color.BLACK)
+            setBackgroundResource(R.drawable.special_key_background)
+            textSize = 18f
+            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.special_key_text))
+            minHeight = 0
+            minimumHeight = dpToPx(48)
             
             // Set up long press detection
             setOnTouchListener { _, event ->
@@ -329,11 +334,14 @@ class NeuroKeyboardView @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT,
                 1f
             ).apply {
-                setMargins(1, 1, 1, 1)
+                setMargins(4, 4, 4, 4)
             }
-            setBackgroundResource(android.R.drawable.btn_default)
-            textSize = 16f
-            setTextColor(android.graphics.Color.BLACK)
+            setBackgroundResource(R.drawable.key_background)
+            textSize = 18f
+            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.key_text_normal))
+            minHeight = 0
+            minimumHeight = dpToPx(48)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             setOnClickListener {
                 onKeyListener?.invoke(text)
             }
@@ -342,17 +350,19 @@ class NeuroKeyboardView @JvmOverloads constructor(
     
     private fun createSpaceButton(): android.widget.Button {
         return android.widget.Button(context).apply {
-            this.text = "SPACE"
+            this.text = "space"
             layoutParams = LayoutParams(
                 LayoutParams.WRAP_CONTENT,
                 LayoutParams.WRAP_CONTENT,
                 3f
             ).apply {
-                setMargins(1, 1, 1, 1)
+                setMargins(4, 4, 4, 4)
             }
-            setBackgroundResource(android.R.drawable.btn_default)
-            textSize = 14f
-            setTextColor(android.graphics.Color.BLACK)
+            setBackgroundResource(R.drawable.space_key_background)
+            textSize = 16f
+            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.special_key_text))
+            minHeight = 0
+            minimumHeight = dpToPx(48)
             setOnClickListener {
                 onKeyListener?.invoke("SPACE")
             }
@@ -366,11 +376,13 @@ class NeuroKeyboardView @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT,
                 LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(1, 1, 1, 1)
+                setMargins(4, 4, 4, 4)
             }
-            setBackgroundResource(android.R.drawable.btn_default)
-            textSize = 14f
-            setTextColor(android.graphics.Color.BLACK)
+            setBackgroundResource(R.drawable.special_key_background)
+            textSize = 16f
+            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.special_key_text))
+            minHeight = 0
+            minimumHeight = dpToPx(48)
             setOnClickListener {
                 onKeyListener?.invoke(action)
             }
@@ -404,5 +416,9 @@ class NeuroKeyboardView @JvmOverloads constructor(
     
     fun showLoadingSuggestions() {
         suggestionsRow.showLoadingIndicator()
+    }
+    
+    private fun dpToPx(dp: Int): Int {
+        return (dp * context.resources.displayMetrics.density).toInt()
     }
 } 

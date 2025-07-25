@@ -8,6 +8,8 @@ import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import com.neurokeycoder.R
 
 class SuggestionsRowView @JvmOverloads constructor(
     context: Context,
@@ -35,8 +37,8 @@ class SuggestionsRowView @JvmOverloads constructor(
         // Add loading indicator
         loadingIndicator = TextView(context).apply {
             text = "Getting suggestions..."
-            textSize = 12f
-            setTextColor(Color.GRAY)
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(context, R.color.suggestion_text))
             gravity = Gravity.CENTER
             layoutParams = LayoutParams(
                 LayoutParams.MATCH_PARENT,
@@ -84,16 +86,17 @@ class SuggestionsRowView @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT,
                 1f
             ).apply {
-                setMargins(2, 2, 2, 2)
+                setMargins(4, 4, 4, 4)
             }
             
             // Styling for suggestion buttons
-            setBackgroundResource(android.R.drawable.btn_default)
-            textSize = 14f
-            setTextColor(Color.BLUE)
+            setBackgroundResource(R.drawable.key_background)
+            textSize = 16f
+            setTextColor(ContextCompat.getColor(context, R.color.suggestion_text))
             minHeight = 0
             minWidth = 0
-            minimumHeight = 80
+            minimumHeight = dpToPx(44)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             
             setOnClickListener {
                 Log.d(TAG, "Suggestion clicked: '$text' - will trigger smart replacement")
@@ -110,12 +113,12 @@ class SuggestionsRowView @JvmOverloads constructor(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(2, 2, 2, 2)
+                setMargins(4, 4, 4, 4)
             }
-            setBackgroundResource(android.R.drawable.btn_default)
-            textSize = 12f
-            setTextColor(Color.GRAY)
-            minimumHeight = 80
+            setBackgroundResource(R.drawable.special_key_background)
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(context, R.color.special_key_text))
+            minimumHeight = dpToPx(44)
             isEnabled = false
         }
         suggestionButtons.add(placeholderButton)
@@ -139,5 +142,9 @@ class SuggestionsRowView @JvmOverloads constructor(
     
     fun setOnSuggestionClickListener(listener: (String) -> Unit) {
         onSuggestionClickListener = listener
+    }
+    
+    private fun dpToPx(dp: Int): Int {
+        return (dp * context.resources.displayMetrics.density).toInt()
     }
 }

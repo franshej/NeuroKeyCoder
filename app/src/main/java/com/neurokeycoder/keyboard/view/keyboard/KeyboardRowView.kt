@@ -6,6 +6,8 @@ import android.widget.LinearLayout
 import android.widget.Button
 import android.widget.TextView
 import android.view.Gravity
+import androidx.core.content.ContextCompat
+import com.neurokeycoder.R
 
 class KeyboardRowView @JvmOverloads constructor(
     context: Context,
@@ -45,11 +47,14 @@ class KeyboardRowView @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT,
                 1f
             ).apply {
-                setMargins(1, 1, 1, 1)
+                setMargins(4, 4, 4, 4)
             }
-            setBackgroundResource(android.R.drawable.btn_default)
-            textSize = 16f
-            setTextColor(android.graphics.Color.BLACK)
+            setBackgroundResource(R.drawable.key_background)
+            textSize = 18f
+            setTextColor(ContextCompat.getColor(context, R.color.key_text_normal))
+            minHeight = 0
+            minimumHeight = dpToPx(48)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             setOnClickListener {
                 onKeyClickListener?.invoke(originalKey)
             }
@@ -114,5 +119,9 @@ class KeyboardRowView @JvmOverloads constructor(
             "&" -> "&&"
             else -> symbol
         }
+    }
+    
+    private fun dpToPx(dp: Int): Int {
+        return (dp * context.resources.displayMetrics.density).toInt()
     }
 } 

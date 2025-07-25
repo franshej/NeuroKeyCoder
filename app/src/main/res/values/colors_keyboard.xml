@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keyboard Theme Colors -->
+    <color name="keyboard_background">#FF212121</color>
+    <color name="key_background">#FF424242</color>
+    <color name="key_background_pressed">#FF2196F3</color>
+    <color name="key_border">#FF616161</color>
+    <color name="key_border_pressed">#FF1976D2</color>
+    
+    <color name="special_key_background">#FF303030</color>
+    <color name="special_key_background_pressed">#FF1976D2</color>
+    <color name="special_key_border">#FF424242</color>
+    <color name="special_key_border_pressed">#FF0D47A1</color>
+    
+    <color name="key_text_normal">#FF03DAC6</color>
+    <color name="key_text_pressed">#FFFFFFFF</color>
+    <color name="special_key_text">#FF03DAC6</color>
+    
+    <color name="suggestion_text">#FF2196F3</color>
+</resources>
