@@ -414,8 +414,12 @@ class NeuroKeyboardView @JvmOverloads constructor(
         suggestionsRow.updateSuggestions(suggestions)
     }
     
-    fun showLoadingSuggestions() {
-        suggestionsRow.showLoadingIndicator()
+    fun showLoadingSuggestions(estimatedDurationMs: Long = 2500L) {
+        suggestionsRow.showLoadingProgress(estimatedDurationMs)
+    }
+    
+    fun updateSuggestionsProgress(progress: Int) {
+        suggestionsRow.updateProgress(progress)
     }
     
     private fun dpToPx(dp: Int): Int {

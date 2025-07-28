@@ -25,10 +25,15 @@ class NeuroKeyboardService : InputMethodService() {
     private var suggestionJob: Job? = null
     private var typedContext = StringBuilder() // Track text typed from keyboard
     
+    // Progress tracking for suggestions
+    private val requestDurations = mutableListOf<Long>()
+    private val maxHistorySize = 10 // Keep last 10 request times for averaging
+    
     companion object {
         private const val TAG = "NeuroKeyboardService"
         private const val CONTEXT_DEBOUNCE_DELAY = 1000L // 1 second delay before fetching suggestions
         private const val MAX_CONTEXT_LENGTH = 200 // Maximum characters to consider for context
+        private const val DEFAULT_ESTIMATION_MS = 2500L // Default 2.5 seconds
     }
     
     override fun onCreate() {
@@ -178,8 +183,12 @@ class NeuroKeyboardService : InputMethodService() {
         suggestionJob = serviceScope.launch {
             Log.d(TAG, "Starting suggestion request job")
             
-            // Show loading indicator
-            keyboardView.showLoadingSuggestions()
+            // Calculate estimated duration based on history
+            val estimatedDuration = getEstimatedDuration()
+            Log.d(TAG, "Using estimated duration: ${estimatedDuration}ms")
+            
+            // Show loading progress bar
+            keyboardView.showLoadingSuggestions(estimatedDuration)
             
             // Wait for debounce delay
             Log.d(TAG, "Waiting ${CONTEXT_DEBOUNCE_DELAY}ms for debounce")
@@ -189,10 +198,18 @@ class NeuroKeyboardService : InputMethodService() {
             val context = getCurrentContext()
             Log.d(TAG, "Final context for suggestions: '$context'")
             
+            // Track request start time
+            val requestStartTime = System.currentTimeMillis()
+            
             try {
                 // Get suggestions from Gemini
                 val suggestions = geminiService.getCppSuggestions(context)
-                Log.d(TAG, "Received suggestions from service: $suggestions")
+                
+                // Record the actual duration
+                val actualDuration = System.currentTimeMillis() - requestStartTime
+                recordRequestDuration(actualDuration)
+                
+                Log.d(TAG, "Received suggestions from service in ${actualDuration}ms: $suggestions")
                 keyboardView.updateSuggestions(suggestions)
             } catch (e: Exception) {
                 Log.e(TAG, "Error in suggestion request", e)
@@ -200,6 +217,30 @@ class NeuroKeyboardService : InputMethodService() {
                 keyboardView.updateSuggestions(emptyList())
             }
         }
+    }
+    
+    private fun getEstimatedDuration(): Long {
+        return if (requestDurations.isNotEmpty()) {
+            val average = requestDurations.average().toLong()
+            Log.d(TAG, "Calculated average duration from ${requestDurations.size} previous requests: ${average}ms")
+            // Add some buffer to the average
+            average + CONTEXT_DEBOUNCE_DELAY
+        } else {
+            Log.d(TAG, "No previous request history, using default estimation")
+            DEFAULT_ESTIMATION_MS
+        }
+    }
+    
+    private fun recordRequestDuration(duration: Long) {
+        Log.d(TAG, "Recording request duration: ${duration}ms")
+        requestDurations.add(duration)
+        
+        // Keep only the most recent requests
+        if (requestDurations.size > maxHistorySize) {
+            requestDurations.removeAt(0)
+        }
+        
+        Log.d(TAG, "Request history now contains ${requestDurations.size} entries")
     }
     
     private fun getCurrentContext(): String {
