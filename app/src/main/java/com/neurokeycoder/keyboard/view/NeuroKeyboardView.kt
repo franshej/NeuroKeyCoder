@@ -68,13 +68,13 @@ class NeuroKeyboardView @JvmOverloads constructor(
         addView(suggestionsRow)
         
         // First row: More symbols
-        addRow(listOf("[", "]", "+", "-", "^", "?", "#", "'", "\""))
+        addRow(listOf("[", "]", "+", "-", "^", "?", "# ", "'", "\""))
 
         // Second row: 0-9
         addRow(listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"))
 
         // Third row: Additional symbols
-        addRow(listOf("const ", "if ", "else ", "void ", "return ", "this"))
+        addRow(listOf("const ", "if ", "else ", "void ", "return ", "this "))
         
         // Third row: SHIFT + More symbols + BACKSPACE
         addSymbolThirdRow()

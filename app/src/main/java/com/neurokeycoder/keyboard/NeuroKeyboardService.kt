@@ -29,11 +29,15 @@ class NeuroKeyboardService : InputMethodService() {
     private val requestDurations = mutableListOf<Long>()
     private val maxHistorySize = 10 // Keep last 10 request times for averaging
     
+    // Cursor position tracking for selective LLM triggering
+    private var lastCursorPosition = -1
+    private var expectingCursorChange = false // Flag to track if cursor change is from our input
+    
     companion object {
         private const val TAG = "NeuroKeyboardService"
         private const val CONTEXT_DEBOUNCE_DELAY = 1000L // 1 second delay before fetching suggestions
         private const val MAX_CONTEXT_LENGTH = 200 // Maximum characters to consider for context
-        private const val DEFAULT_ESTIMATION_MS = 2500L // Default 2.5 seconds
+        private const val DEFAULT_ESTIMATION_MS = 1000L // Default 2.5 seconds
     }
     
     override fun onCreate() {
@@ -58,27 +62,30 @@ class NeuroKeyboardService : InputMethodService() {
         when (key) {
             "BACKSPACE" -> {
                 val ic = currentInputConnection
+                expectingCursorChange = true // Flag that we're about to change cursor position
                 ic?.deleteSurroundingText(1, 0)
                 // Remove last character from typed context
                 if (typedContext.isNotEmpty()) {
                     typedContext.deleteCharAt(typedContext.length - 1)
                     Log.d(TAG, "Updated typed context after backspace: '${typedContext}'")
                 }
-                requestSuggestionsWithDelay()
+                // Note: LLM not triggered for backspace - only for space, enter, and cursor movement
             }
             "SPACE" -> {
                 val ic = currentInputConnection
+                expectingCursorChange = true // Flag that we're about to change cursor position
                 ic?.commitText(" ", 1)
                 typedContext.append(" ")
-                Log.d(TAG, "Updated typed context after space: '${typedContext}'")
-                requestSuggestionsWithDelay()
+                Log.d(TAG, "Updated typed context after space: '${typedContext}' - triggering LLM")
+                requestSuggestions()
             }
             "ENTER" -> {
                 val ic = currentInputConnection
+                expectingCursorChange = true // Flag that we're about to change cursor position
                 ic?.performEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_DONE)
                 typedContext.append("\n")
-                Log.d(TAG, "Updated typed context after enter: '${typedContext}'")
-                requestSuggestionsWithDelay()
+                Log.d(TAG, "Updated typed context after enter: '${typedContext}' - triggering LLM")
+                requestSuggestions()
             }
             "SHIFT" -> {
                 toggleShift()
@@ -101,11 +108,12 @@ class NeuroKeyboardService : InputMethodService() {
                 // Regular character input
                 val ic = currentInputConnection
                 val textToCommit = if (isShiftPressed) getShiftedKey(key) else key
+                expectingCursorChange = true // Flag that we're about to change cursor position
                 ic?.commitText(textToCommit, 1)
                 
                 // Add to typed context
                 typedContext.append(textToCommit)
-                Log.d(TAG, "Added '$textToCommit' to typed context: '${typedContext}'")
+                Log.d(TAG, "Added '$textToCommit' to typed context: '${typedContext}' (no LLM trigger)")
                 
                 // Keep context within reasonable length
                 if (typedContext.length > MAX_CONTEXT_LENGTH) {
@@ -113,7 +121,7 @@ class NeuroKeyboardService : InputMethodService() {
                     Log.d(TAG, "Trimmed typed context to max length: '${typedContext}'")
                 }
                 
-                requestSuggestionsWithDelay()
+                // Note: LLM not triggered for regular characters - only for space, enter, and cursor movement
             }
         }
     }
@@ -136,15 +144,43 @@ class NeuroKeyboardService : InputMethodService() {
         super.onStartInputView(info, restarting)
         Log.d(TAG, "Keyboard started - restarting: $restarting")
         
-        // Reset context when keyboard is launched
+        // Reset context and cursor tracking when keyboard is launched
         typedContext.clear()
-        Log.d(TAG, "Cleared typed context on keyboard start")
+        lastCursorPosition = -1
+        Log.d(TAG, "Cleared typed context and cursor position on keyboard start")
         
         // Get initial context from input field if available
         getInputFieldContext()
         
-        // Request initial suggestions
-        requestSuggestionsWithDelay()
+        // Request initial suggestions on keyboard start
+        requestSuggestions()
+    }
+    
+    override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
+        super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        
+        // Check if cursor position changed (not just selection)
+        if (newSelStart != lastCursorPosition && newSelStart == newSelEnd) {
+            if (expectingCursorChange) {
+                // This cursor change was caused by our own input, ignore it
+                Log.d(TAG, "Cursor moved from $lastCursorPosition to $newSelStart (caused by keyboard input, ignoring)")
+                expectingCursorChange = false
+                lastCursorPosition = newSelStart
+            } else {
+                // This is an external cursor movement (user tapped/navigated), trigger LLM
+                Log.d(TAG, "External cursor movement from $lastCursorPosition to $newSelStart - triggering LLM suggestions")
+                lastCursorPosition = newSelStart
+                
+                // Update context based on new cursor position
+                getInputFieldContext()
+                
+                // Request suggestions due to cursor movement
+                requestSuggestions()
+            }
+        } else {
+            // Reset the flag if selection change doesn't match our expectations
+            expectingCursorChange = false
+        }
     }
     
     private fun getInputFieldContext() {
@@ -168,10 +204,21 @@ class NeuroKeyboardService : InputMethodService() {
         }
     }
     
-    private fun requestSuggestionsWithDelay() {
-        Log.d(TAG, "Requesting suggestions with delay")
+    /**
+     * Requests LLM suggestions immediately (debounce only cancels previous requests).
+     * Called for:
+     * 1. Cursor movement (onUpdateSelection)
+     * 2. Space key press
+     * 3. Enter/newline key press
+     * 4. Initial keyboard launch (onStartInputView)
+     * 5. C++ keyword suggestion application (suggestions containing spaces)
+     * 
+     * NOT called for regular character input or regular suggestion application.
+     */
+    private fun requestSuggestions() {
+        Log.d(TAG, "Requesting suggestions (canceling any pending requests)")
         
-        // Cancel any pending suggestion request
+        // Cancel any pending suggestion request (this is the "debounce" - no waiting!)
         suggestionJob?.cancel()
         
         if (!geminiService.isConfigured()) {
@@ -181,28 +228,24 @@ class NeuroKeyboardService : InputMethodService() {
         }
         
         suggestionJob = serviceScope.launch {
-            Log.d(TAG, "Starting suggestion request job")
+            Log.d(TAG, "Starting suggestion request job immediately")
             
-            // Calculate estimated duration based on history
+            // Get current context immediately
+            val context = getCurrentContext()
+            Log.d(TAG, "Context for suggestions: '$context'")
+            
+            // Calculate estimated duration based on history (for progress bar)
             val estimatedDuration = getEstimatedDuration()
-            Log.d(TAG, "Using estimated duration: ${estimatedDuration}ms")
+            Log.d(TAG, "Using estimated duration for progress: ${estimatedDuration}ms")
             
             // Show loading progress bar
             keyboardView.showLoadingSuggestions(estimatedDuration)
-            
-            // Wait for debounce delay
-            Log.d(TAG, "Waiting ${CONTEXT_DEBOUNCE_DELAY}ms for debounce")
-            delay(CONTEXT_DEBOUNCE_DELAY)
-            
-            // Get current context
-            val context = getCurrentContext()
-            Log.d(TAG, "Final context for suggestions: '$context'")
             
             // Track request start time
             val requestStartTime = System.currentTimeMillis()
             
             try {
-                // Get suggestions from Gemini
+                // Get suggestions from Gemini immediately
                 val suggestions = geminiService.getCppSuggestions(context)
                 
                 // Record the actual duration
@@ -223,8 +266,7 @@ class NeuroKeyboardService : InputMethodService() {
         return if (requestDurations.isNotEmpty()) {
             val average = requestDurations.average().toLong()
             Log.d(TAG, "Calculated average duration from ${requestDurations.size} previous requests: ${average}ms")
-            // Add some buffer to the average
-            average + CONTEXT_DEBOUNCE_DELAY
+            average
         } else {
             Log.d(TAG, "No previous request history, using default estimation")
             DEFAULT_ESTIMATION_MS
@@ -297,6 +339,8 @@ class NeuroKeyboardService : InputMethodService() {
             return
         }
         
+        expectingCursorChange = true // Flag that we're about to change cursor position
+        
         try {
             // Get current word being typed
             val currentWord = getCurrentPartialWord()
@@ -329,14 +373,26 @@ class NeuroKeyboardService : InputMethodService() {
                 Log.d(TAG, "Trimmed typed context to max length after suggestion")
             }
             
-            Log.d(TAG, "Updated typed context after suggestion: '${typedContext}'")
-            requestSuggestionsWithDelay()
+            // Check if this suggestion contains a space (indicating C++ keyword button)
+            if (suggestion.contains(" ")) {
+                Log.d(TAG, "C++ keyword suggestion detected (contains space): '$suggestion' - triggering LLM")
+                requestSuggestions()
+            } else {
+                Log.d(TAG, "Updated typed context after suggestion: '${typedContext}' (no LLM trigger)")
+            }
             
         } catch (e: Exception) {
             Log.e(TAG, "Error applying suggestion with smart replacement", e)
             // Fallback to regular insertion
+            expectingCursorChange = true // Flag that we're about to change cursor position
             ic.commitText(suggestion, 1)
             typedContext.append(suggestion)
+            
+            // Check if this suggestion contains a space (indicating C++ keyword button)
+            if (suggestion.contains(" ")) {
+                Log.d(TAG, "C++ keyword suggestion detected in fallback (contains space): '$suggestion' - triggering LLM")
+                requestSuggestions()
+            }
         }
     }
     
