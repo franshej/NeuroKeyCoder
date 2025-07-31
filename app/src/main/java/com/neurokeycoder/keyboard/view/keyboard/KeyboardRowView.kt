@@ -19,6 +19,16 @@ class KeyboardRowView @JvmOverloads constructor(
     private var originalKeys = listOf<String>()
     private var isShiftPressed = false
     
+    // Configurable margin property for buttons in this row
+    var buttonMargin: Int = 4
+        set(value) {
+            field = value
+            // Refresh the row when margin changes
+            if (originalKeys.isNotEmpty()) {
+                updateShift(isShiftPressed)
+            }
+        }
+    
     init {
         orientation = HORIZONTAL
         layoutParams = LayoutParams(
@@ -47,12 +57,13 @@ class KeyboardRowView @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT,
                 1f
             ).apply {
-                setMargins(4, 4, 4, 4)
+                setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
             }
             setBackgroundResource(R.drawable.key_background)
             textSize = 18f
             setTextColor(ContextCompat.getColor(context, R.color.key_text_normal))
             minHeight = 0
+            minWidth = 0
             minimumHeight = dpToPx(48)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setOnClickListener {

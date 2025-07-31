@@ -2,11 +2,8 @@ package com.neurokeycoder.keyboard.view
 
 import android.content.Context
 import android.util.AttributeSet
-import android.view.LayoutInflater
 import android.widget.LinearLayout
-import androidx.core.content.ContextCompat
 import com.neurokeycoder.R
-import com.neurokeycoder.keyboard.view.keyboard.KeyboardRow
 import com.neurokeycoder.keyboard.view.keyboard.KeyboardRowView
 
 class NeuroKeyboardView @JvmOverloads constructor(
@@ -19,6 +16,22 @@ class NeuroKeyboardView @JvmOverloads constructor(
     private val symbolRowViews = mutableListOf<KeyboardRowView>()
     private var isShiftPressed = false
     private var isSymbolLayout = true
+    
+    // Configurable margin property for all buttons
+    var buttonMargin: Int = 2
+        set(value) {
+            field = value
+            // Update margins for existing KeyboardRowViews
+            symbolRowViews.forEach { rowView ->
+                rowView.buttonMargin = value
+            }
+            // Refresh keyboard when margin changes
+            if (isSymbolLayout) {
+                setupSymbolLayout()
+            } else {
+                setupMainLayout()
+            }
+        }
     
     // LLM Suggestions
     private val suggestionsRow: SuggestionsRowView by lazy {
@@ -98,7 +111,9 @@ class NeuroKeyboardView @JvmOverloads constructor(
         val symbols = listOf("(", ")", "{", "}", "_", "=", "&", "*", "!", "|", "<", ">")
         symbols.forEach { symbol ->
             val keyButton = createKeyButton(symbol)
-            keyButton.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
+            val layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
+            layoutParams.setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+            keyButton.layoutParams = layoutParams
             programmingRow.addView(keyButton)
         }
         
@@ -118,36 +133,47 @@ class NeuroKeyboardView @JvmOverloads constructor(
         
         // ?123 key
         val numberKey = createSpecialKeyButton("?123", "?123")
-        numberKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
+        val layout = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
+        layout.setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+        numberKey.layoutParams = layout
         specialRow.addView(numberKey)
         
-        // Comma key
-        val commaKey = createKeyButton(".")
-        commaKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
-        specialRow.addView(commaKey)
+        val dotKey = createKeyButton(".")
+        dotKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f).apply {
+            setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+        }
+        specialRow.addView(dotKey)
         
-        // ; < keys
-        val semicolonKey = createKeyButton(":")
-        semicolonKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
-        specialRow.addView(semicolonKey)
+        val colonKey = createKeyButton(":")
+        colonKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f).apply {
+            setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+        }
+        specialRow.addView(colonKey)
 
-        // Space key (smaller)
         val spaceKey = createSpaceButton()
-        spaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.5f)
+        spaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.5f).apply {
+            setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+        }
         specialRow.addView(spaceKey)
         
-        val lessThanKey = createKeyButton(";")
-        lessThanKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
-        specialRow.addView(lessThanKey)
+        val semicolonKey = createKeyButton(";")
+        semicolonKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f).apply {
+            setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+        }
+        specialRow.addView(semicolonKey)
         
         // > : keys
-        val greaterThanKey = createKeyButton(".")
-        greaterThanKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
-        specialRow.addView(greaterThanKey)
+        val commaKey = createKeyButton(",")
+        commaKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f).apply {
+            setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+        }
+        specialRow.addView(commaKey)
         
         // Enter key (new line)
         val enterKey = createSpecialKeyButton("ENTER", "↵")
-        enterKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
+        enterKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f).apply {
+            setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+        }
         specialRow.addView(enterKey)
         
         addView(specialRow)
@@ -224,6 +250,7 @@ class NeuroKeyboardView @JvmOverloads constructor(
     
     private fun addRow(keys: List<String>) {
         val rowView = KeyboardRowView(context).apply {
+            buttonMargin = this@NeuroKeyboardView.buttonMargin
             setKeys(keys)
             setOnKeyClickListener { key ->
                 onKeyListener?.invoke(key)
@@ -251,6 +278,7 @@ class NeuroKeyboardView @JvmOverloads constructor(
         
         // Letter keys: Z X C V B N M - using KeyboardRowView for proper shift handling
         val letterRowView = KeyboardRowView(context).apply {
+            buttonMargin = this@NeuroKeyboardView.buttonMargin
             setKeys(listOf("z", "x", "c", "v", "b", "n", "m"))
             setOnKeyClickListener { key ->
                 onKeyListener?.invoke(key)
@@ -275,12 +303,13 @@ class NeuroKeyboardView @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT,
                 LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(4, 4, 4, 4)
+                setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
             }
             setBackgroundResource(R.drawable.special_key_background)
             textSize = 18f
             setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.special_key_text))
             minHeight = 0
+            minWidth = 0
             minimumHeight = dpToPx(48)
             
             // Set up long press detection
@@ -334,12 +363,13 @@ class NeuroKeyboardView @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT,
                 1f
             ).apply {
-                setMargins(4, 4, 4, 4)
+                setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
             }
             setBackgroundResource(R.drawable.key_background)
             textSize = 18f
             setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.key_text_normal))
             minHeight = 0
+            minWidth = 0
             minimumHeight = dpToPx(48)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setOnClickListener {
@@ -352,16 +382,17 @@ class NeuroKeyboardView @JvmOverloads constructor(
         return android.widget.Button(context).apply {
             this.text = "space"
             layoutParams = LayoutParams(
-                LayoutParams.WRAP_CONTENT,
+                0,
                 LayoutParams.WRAP_CONTENT,
                 3f
             ).apply {
-                setMargins(4, 4, 4, 4)
+                setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
             }
             setBackgroundResource(R.drawable.space_key_background)
             textSize = 16f
             setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.special_key_text))
             minHeight = 0
+            minWidth = 0
             minimumHeight = dpToPx(48)
             setOnClickListener {
                 onKeyListener?.invoke("SPACE")
@@ -373,15 +404,16 @@ class NeuroKeyboardView @JvmOverloads constructor(
         return android.widget.Button(context).apply {
             this.text = displayText
             layoutParams = LayoutParams(
-                LayoutParams.WRAP_CONTENT,
+                0,
                 LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(4, 4, 4, 4)
+                setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
             }
             setBackgroundResource(R.drawable.special_key_background)
             textSize = 16f
             setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.special_key_text))
             minHeight = 0
+            minWidth = 0
             minimumHeight = dpToPx(48)
             setOnClickListener {
                 onKeyListener?.invoke(action)
