@@ -68,7 +68,7 @@ class NeuroKeyboardView @JvmOverloads constructor(
         addView(suggestionsRow)
         
         // First row: More symbols
-        addRow(listOf("[", "]", "+", "-", "^", "?", "# ", "'", "\""))
+        addRow(listOf("[", "]", "+", "-", "^", "?", "#", "'", "\""))
 
         // Second row: 0-9
         addRow(listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"))
@@ -95,7 +95,7 @@ class NeuroKeyboardView @JvmOverloads constructor(
         }
         
         // Programming symbols: ( ) { } [ ] & * + -
-        val symbols = listOf("(", ")", "{", "}", "_", "=", "&", "*", "!", "|", ";", ",")
+        val symbols = listOf("(", ")", "{", "}", "_", "=", "&", "*", "!", "|", "<", ">")
         symbols.forEach { symbol ->
             val keyButton = createKeyButton(symbol)
             keyButton.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
@@ -136,12 +136,12 @@ class NeuroKeyboardView @JvmOverloads constructor(
         spaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.5f)
         specialRow.addView(spaceKey)
         
-        val lessThanKey = createKeyButton("<")
+        val lessThanKey = createKeyButton(";")
         lessThanKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
         specialRow.addView(lessThanKey)
         
         // > : keys
-        val greaterThanKey = createKeyButton(">")
+        val greaterThanKey = createKeyButton(".")
         greaterThanKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f)
         specialRow.addView(greaterThanKey)
         
