@@ -113,7 +113,6 @@ class NeuroKeyboardService : InputMethodService() {
                 
                 // Add to typed context
                 typedContext.append(textToCommit)
-                Log.d(TAG, "Added '$textToCommit' to typed context: '${typedContext}' (no LLM trigger)")
                 
                 // Keep context within reasonable length
                 if (typedContext.length > MAX_CONTEXT_LENGTH) {
@@ -121,7 +120,20 @@ class NeuroKeyboardService : InputMethodService() {
                     Log.d(TAG, "Trimmed typed context to max length: '${typedContext}'")
                 }
                 
-                // Note: LLM not triggered for regular characters - only for space, enter, and cursor movement
+                // Check if we should trigger API based on specific characters or word length
+                val currentWordLength = getCurrentWordLength()
+                val shouldTriggerForCharacter = textToCommit == "#"
+                val shouldTriggerForWordLength = currentWordLength == 2 || currentWordLength == 5
+                
+                if (shouldTriggerForCharacter) {
+                    Log.d(TAG, "Character trigger: '$textToCommit' typed - triggering LLM for preprocessor directives")
+                    requestSuggestions()
+                } else if (shouldTriggerForWordLength) {
+                    Log.d(TAG, "Word length trigger: '$textToCommit' added, current word length: $currentWordLength - triggering LLM")
+                    requestSuggestions()
+                } else {
+                    Log.d(TAG, "Added '$textToCommit' to typed context: '${typedContext}', word length: $currentWordLength (no LLM trigger)")
+                }
             }
         }
     }
@@ -212,8 +224,10 @@ class NeuroKeyboardService : InputMethodService() {
      * 3. Enter/newline key press
      * 4. Initial keyboard launch (onStartInputView)
      * 5. C++ keyword suggestion application (suggestions containing spaces)
+     * 6. Word length triggers (2nd and 5th character in a word)
+     * 7. Specific character triggers (# for preprocessor directives)
      * 
-     * NOT called for regular character input or regular suggestion application.
+     * NOT called for other regular character input or regular suggestion application.
      */
     private fun requestSuggestions() {
         Log.d(TAG, "Requesting suggestions (canceling any pending requests)")
@@ -415,6 +429,27 @@ class NeuroKeyboardService : InputMethodService() {
         } catch (e: Exception) {
             Log.e(TAG, "Error getting current partial word", e)
             return ""
+        }
+    }
+    
+    private fun getCurrentWordLength(): Int {
+        val ic = currentInputConnection ?: return 0
+        
+        try {
+            // Get text before cursor to find the current word being typed
+            val textBeforeCursor = ic.getTextBeforeCursor(50, 0) ?: return 0
+            
+            // Find the last word (sequence of letters/numbers/underscores)
+            val wordPattern = Regex("[a-zA-Z_][a-zA-Z0-9_]*$")
+            val match = wordPattern.find(textBeforeCursor)
+            val currentWordLength = match?.value?.length ?: 0
+            
+            Log.d(TAG, "Current word length: $currentWordLength")
+            return currentWordLength
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting current word length", e)
+            return 0
         }
     }
     
