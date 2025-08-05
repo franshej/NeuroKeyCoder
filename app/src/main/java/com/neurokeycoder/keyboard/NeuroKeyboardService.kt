@@ -3,14 +3,12 @@ package com.neurokeycoder.keyboard
 import android.inputmethodservice.InputMethodService
 import android.util.Log
 import android.view.View
-import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import com.neurokeycoder.ai.GeminiService
 import com.neurokeycoder.keyboard.view.NeuroKeyboardView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class NeuroKeyboardService : InputMethodService() {
@@ -23,21 +21,20 @@ class NeuroKeyboardService : InputMethodService() {
     private lateinit var geminiService: GeminiService
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var suggestionJob: Job? = null
-    private var typedContext = StringBuilder() // Track text typed from keyboard
-    
+    private var typedContext = StringBuilder()
+
     // Progress tracking for suggestions
     private val requestDurations = mutableListOf<Long>()
-    private val maxHistorySize = 10 // Keep last 10 request times for averaging
-    
+    private val maxHistorySize = 10
+
     // Cursor position tracking for selective LLM triggering
     private var lastCursorPosition = -1
-    private var expectingCursorChange = false // Flag to track if cursor change is from our input
+    private var expectingCursorChange = false
     
     companion object {
         private const val TAG = "NeuroKeyboardService"
-        private const val CONTEXT_DEBOUNCE_DELAY = 1000L // 1 second delay before fetching suggestions
-        private const val MAX_CONTEXT_LENGTH = 200 // Maximum characters to consider for context
-        private const val DEFAULT_ESTIMATION_MS = 1000L // Default 2.5 seconds
+        private const val MAX_CONTEXT_LENGTH = 200
+        private const val DEFAULT_ESTIMATION_MS = 1000L
     }
     
     override fun onCreate() {
@@ -51,7 +48,6 @@ class NeuroKeyboardService : InputMethodService() {
         keyboardView = NeuroKeyboardView(this)
         keyboardView.setOnKeyListener { key ->
             handleKeyPress(key)
-            true
         }
         return keyboardView
     }
@@ -62,18 +58,16 @@ class NeuroKeyboardService : InputMethodService() {
         when (key) {
             "BACKSPACE" -> {
                 val ic = currentInputConnection
-                expectingCursorChange = true // Flag that we're about to change cursor position
+                expectingCursorChange = true
                 ic?.deleteSurroundingText(1, 0)
-                // Remove last character from typed context
                 if (typedContext.isNotEmpty()) {
                     typedContext.deleteCharAt(typedContext.length - 1)
                     Log.d(TAG, "Updated typed context after backspace: '${typedContext}'")
                 }
-                // Note: LLM not triggered for backspace - only for space, enter, and cursor movement
             }
             "SPACE" -> {
                 val ic = currentInputConnection
-                expectingCursorChange = true // Flag that we're about to change cursor position
+                expectingCursorChange = true
                 ic?.commitText(" ", 1)
                 typedContext.append(" ")
                 Log.d(TAG, "Updated typed context after space: '${typedContext}' - triggering LLM")
@@ -81,7 +75,7 @@ class NeuroKeyboardService : InputMethodService() {
             }
             "ENTER" -> {
                 val ic = currentInputConnection
-                expectingCursorChange = true // Flag that we're about to change cursor position
+                expectingCursorChange = true
                 ic?.performEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_DONE)
                 typedContext.append("\n")
                 Log.d(TAG, "Updated typed context after enter: '${typedContext}' - triggering LLM")
@@ -91,27 +85,21 @@ class NeuroKeyboardService : InputMethodService() {
                 toggleShift()
             }
             "?123" -> {
-                // Switch to symbol layout
                 keyboardView.switchToSymbolLayout()
             }
             "ABC" -> {
-                // Switch back to main layout
                 keyboardView.switchToMainLayout()
             }
             else -> {
-                // Check if this is a suggestion being applied (after handling special keys)
                 if (isApplyingSuggestion(key)) {
                     applySuggestionWithSmartReplacement(key)
                     return
                 }
-                
-                // Regular character input
                 val ic = currentInputConnection
                 val textToCommit = if (isShiftPressed) getShiftedKey(key) else key
-                expectingCursorChange = true // Flag that we're about to change cursor position
+                expectingCursorChange = true
                 ic?.commitText(textToCommit, 1)
                 
-                // Add to typed context
                 typedContext.append(textToCommit)
                 
                 // Keep context within reasonable length
@@ -144,7 +132,6 @@ class NeuroKeyboardService : InputMethodService() {
     }
     
     private fun getShiftedKey(key: String): String {
-        // For letters, toggle case. For symbols, get alternative symbols.
         return when {
             key.matches(Regex("[A-Z]")) -> key.lowercase()
             key.matches(Regex("[a-z]")) -> key.uppercase()
@@ -161,10 +148,8 @@ class NeuroKeyboardService : InputMethodService() {
         lastCursorPosition = -1
         Log.d(TAG, "Cleared typed context and cursor position on keyboard start")
         
-        // Get initial context from input field if available
-        getInputFieldContext()
+        updateInputFieldContext()
         
-        // Request initial suggestions on keyboard start
         requestSuggestions()
     }
     
@@ -183,19 +168,16 @@ class NeuroKeyboardService : InputMethodService() {
                 Log.d(TAG, "External cursor movement from $lastCursorPosition to $newSelStart - triggering LLM suggestions")
                 lastCursorPosition = newSelStart
                 
-                // Update context based on new cursor position
-                getInputFieldContext()
+                updateInputFieldContext()
                 
-                // Request suggestions due to cursor movement
                 requestSuggestions()
             }
         } else {
-            // Reset the flag if selection change doesn't match our expectations
             expectingCursorChange = false
         }
     }
     
-    private fun getInputFieldContext() {
+    private fun updateInputFieldContext() {
         val ic = currentInputConnection ?: run {
             Log.d(TAG, "No input connection available")
             return
@@ -244,25 +226,19 @@ class NeuroKeyboardService : InputMethodService() {
         suggestionJob = serviceScope.launch {
             Log.d(TAG, "Starting suggestion request job immediately")
             
-            // Get current context immediately
             val context = getCurrentContext()
             Log.d(TAG, "Context for suggestions: '$context'")
             
-            // Calculate estimated duration based on history (for progress bar)
             val estimatedDuration = getEstimatedDuration()
             Log.d(TAG, "Using estimated duration for progress: ${estimatedDuration}ms")
             
-            // Show loading progress bar
             keyboardView.showLoadingSuggestions(estimatedDuration)
             
-            // Track request start time
             val requestStartTime = System.currentTimeMillis()
             
             try {
-                // Get suggestions from Gemini immediately
                 val suggestions = geminiService.getCppSuggestions(context)
                 
-                // Record the actual duration
                 val actualDuration = System.currentTimeMillis() - requestStartTime
                 recordRequestDuration(actualDuration)
                 
@@ -270,7 +246,6 @@ class NeuroKeyboardService : InputMethodService() {
                 keyboardView.updateSuggestions(suggestions)
             } catch (e: Exception) {
                 Log.e(TAG, "Error in suggestion request", e)
-                // Fallback to empty suggestions on error
                 keyboardView.updateSuggestions(emptyList())
             }
         }
@@ -329,7 +304,6 @@ class NeuroKeyboardService : InputMethodService() {
     }
     
     private fun isApplyingSuggestion(key: String): Boolean {
-        // Known special keywords that should NOT trigger smart replacement
         val specialKeywords = setOf(
             "BACKSPACE", "SPACE", "ENTER", "SHIFT", "?123", "ABC", 
             "GLOBE", "SEARCH", ",", "."
@@ -356,7 +330,6 @@ class NeuroKeyboardService : InputMethodService() {
         expectingCursorChange = true // Flag that we're about to change cursor position
         
         try {
-            // Get current word being typed
             val currentWord = getCurrentPartialWord()
             Log.d(TAG, "Current partial word: '$currentWord'")
             
@@ -375,7 +348,6 @@ class NeuroKeyboardService : InputMethodService() {
                 typedContext.append(suggestion)
                 
             } else {
-                // Regular insertion if no smart replacement needed
                 Log.d(TAG, "Regular insertion: '$suggestion'")
                 ic.commitText(suggestion, 1)
                 typedContext.append(suggestion)
@@ -398,7 +370,7 @@ class NeuroKeyboardService : InputMethodService() {
         } catch (e: Exception) {
             Log.e(TAG, "Error applying suggestion with smart replacement", e)
             // Fallback to regular insertion
-            expectingCursorChange = true // Flag that we're about to change cursor position
+            expectingCursorChange = true
             ic.commitText(suggestion, 1)
             typedContext.append(suggestion)
             
@@ -414,7 +386,6 @@ class NeuroKeyboardService : InputMethodService() {
         val ic = currentInputConnection ?: return ""
         
         try {
-            // Get text before cursor to find the current word being typed
             val textBeforeCursor = ic.getTextBeforeCursor(50, 0) ?: return ""
             Log.d(TAG, "Text before cursor for word detection: '$textBeforeCursor'")
             
@@ -436,7 +407,6 @@ class NeuroKeyboardService : InputMethodService() {
         val ic = currentInputConnection ?: return 0
         
         try {
-            // Get text before cursor to find the current word being typed
             val textBeforeCursor = ic.getTextBeforeCursor(50, 0) ?: return 0
             
             // Find the last word (sequence of letters/numbers/underscores)

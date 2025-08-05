@@ -34,12 +34,10 @@ class MainActivity : AppCompatActivity() {
             openAppSettings()
         }
         
-        // Add API key configuration button
         binding.btnApiKey.setOnClickListener {
             showApiKeyDialog()
         }
         
-        // Update API key button text based on configuration status
         updateApiKeyButtonText()
     }
     

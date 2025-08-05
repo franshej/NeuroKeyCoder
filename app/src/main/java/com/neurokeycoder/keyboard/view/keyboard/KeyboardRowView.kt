@@ -23,7 +23,6 @@ class KeyboardRowView @JvmOverloads constructor(
     var buttonMargin: Int = 4
         set(value) {
             field = value
-            // Refresh the row when margin changes
             if (originalKeys.isNotEmpty()) {
                 updateShift(isShiftPressed)
             }
@@ -92,43 +91,10 @@ class KeyboardRowView @JvmOverloads constructor(
     }
     
     private fun getShiftedKey(key: String): String {
-        // For letters, toggle case. For symbols, get alternative symbols.
         return when {
             key.matches(Regex("[A-Z]")) -> key.lowercase()
             key.matches(Regex("[a-z]")) -> key.uppercase()
-            else -> getShiftedSymbol(key)
-        }
-    }
-    
-    private fun getShiftedSymbol(symbol: String): String {
-        return when (symbol) {
-            "1" -> "!"
-            "2" -> "@"
-            "3" -> "#"
-            "4" -> "$"
-            "5" -> "%"
-            "6" -> "^"
-            "7" -> "&"
-            "8" -> "*"
-            "9" -> "("
-            "0" -> ")"
-            "+" -> "="
-            "-" -> "_"
-            "*" -> "×"
-            "/" -> "÷"
-            "=" -> "+"
-            "(" -> ")"
-            ")" -> "("
-            ";" -> ":"
-            "," -> "<"
-            "{" -> "["
-            "}" -> "]"
-            "[" -> "{"
-            "]" -> "}"
-            "<" -> "≤"
-            ">" -> "≥"
-            "&" -> "&&"
-            else -> symbol
+            else -> key
         }
     }
     

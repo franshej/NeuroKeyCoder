@@ -17,15 +17,12 @@ class NeuroKeyboardView @JvmOverloads constructor(
     private var isShiftPressed = false
     private var isSymbolLayout = true
     
-    // Configurable margin property for all buttons
     var buttonMargin: Int = 2
         set(value) {
             field = value
-            // Update margins for existing KeyboardRowViews
             symbolRowViews.forEach { rowView ->
                 rowView.buttonMargin = value
             }
-            // Refresh keyboard when margin changes
             if (isSymbolLayout) {
                 setupSymbolLayout()
             } else {
@@ -33,8 +30,7 @@ class NeuroKeyboardView @JvmOverloads constructor(
             }
         }
     
-    // LLM Suggestions
-    private val suggestionsRow: SuggestionsRowView by lazy {
+    private val llmSuggestionsRow: SuggestionsRowView by lazy {
         SuggestionsRowView(context).apply {
             setOnSuggestionClickListener { suggestion ->
                 onKeyListener?.invoke(suggestion)
@@ -57,19 +53,16 @@ class NeuroKeyboardView @JvmOverloads constructor(
         removeAllViews()
         symbolRowViews.clear()
 
-        // Add LLM suggestions row at the top
-        addView(suggestionsRow)
+        addView(llmSuggestionsRow)
         
-        // Fourth row: Programming symbols
         addProgrammingSymbolsRow()
         
         addRow(listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"))
 
         addRow(listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"))
         
-        // Third row: SHIFT + Z X C V B N M + BACKSPACE
         addThirdRow()
-        // Fifth row: Special keys
+
         addSpecialRow()
     }
     
@@ -77,22 +70,16 @@ class NeuroKeyboardView @JvmOverloads constructor(
         removeAllViews()
         symbolRowViews.clear()
         
-        // Add LLM suggestions row at the top
-        addView(suggestionsRow)
+        addView(llmSuggestionsRow)
         
-        // First row: More symbols
         addRow(listOf("[", "]", "+", "-", "^", "?", "#", "'", "\""))
 
-        // Second row: 0-9
         addRow(listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"))
 
-        // Third row: Additional symbols
         addRow(listOf("const ", "if ", "else ", "void ", "return ", "this "))
         
-        // Third row: SHIFT + More symbols + BACKSPACE
         addSymbolThirdRow()
         
-        // Fourth row: Special keys with ABC button
         addSymbolSpecialRow()
     }
     
@@ -107,7 +94,6 @@ class NeuroKeyboardView @JvmOverloads constructor(
             }
         }
         
-        // Programming symbols: ( ) { } [ ] & * + -
         val symbols = listOf("(", ")", "{", "}", "_", "=", "&", "*", "!", "|", "<", ">")
         symbols.forEach { symbol ->
             val keyButton = createKeyButton(symbol)
@@ -131,7 +117,6 @@ class NeuroKeyboardView @JvmOverloads constructor(
             }
         }
         
-        // ?123 key
         val numberKey = createSpecialKeyButton("?123", "?123")
         val layout = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
         layout.setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
@@ -162,14 +147,12 @@ class NeuroKeyboardView @JvmOverloads constructor(
         }
         specialRow.addView(semicolonKey)
         
-        // > : keys
         val commaKey = createKeyButton(",")
         commaKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.5f).apply {
             setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
         }
         specialRow.addView(commaKey)
         
-        // Enter key (new line)
         val enterKey = createSpecialKeyButton("ENTER", "↵")
         enterKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f).apply {
             setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
@@ -190,7 +173,6 @@ class NeuroKeyboardView @JvmOverloads constructor(
             }
         }
         
-        // ABC key (to switch back to main layout)
         val abcKey = createSpecialKeyButton("ABC", "ABC")
         abcKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
         specialRow.addView(abcKey)
@@ -202,7 +184,6 @@ class NeuroKeyboardView @JvmOverloads constructor(
             specialRow.addView(keyButton)
         }
 
-        // Space key (takes most space)
         val spaceKey = createSpaceButton()
         spaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 3.0f)
         specialRow.addView(spaceKey)
@@ -228,7 +209,6 @@ class NeuroKeyboardView @JvmOverloads constructor(
             }
         }
         
-        // Shift key - weight 1.0 (medium width)
         val shiftKey = createSpecialKeyButton("SHIFT", "⇧")
         shiftKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
         thirdRow.addView(shiftKey)
@@ -240,7 +220,6 @@ class NeuroKeyboardView @JvmOverloads constructor(
             thirdRow.addView(keyButton)
         }
         
-        // Backspace key - weight 1.0 (medium width) with long press support
         val backspaceKey = createBackspaceButton()
         backspaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.0f)
         thirdRow.addView(backspaceKey)
@@ -271,12 +250,10 @@ class NeuroKeyboardView @JvmOverloads constructor(
             }
         }
         
-        // Shift key - weight 1.0 (medium width)
         val shiftKey = createSpecialKeyButton("SHIFT", "⇧")
         shiftKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.5f)
         thirdRow.addView(shiftKey)
         
-        // Letter keys: Z X C V B N M - using KeyboardRowView for proper shift handling
         val letterRowView = KeyboardRowView(context).apply {
             buttonMargin = this@NeuroKeyboardView.buttonMargin
             setKeys(listOf("z", "x", "c", "v", "b", "n", "m"))
@@ -288,7 +265,6 @@ class NeuroKeyboardView @JvmOverloads constructor(
         symbolRowViews.add(letterRowView)
         thirdRow.addView(letterRowView)
         
-        // Backspace key - weight 1.0 (medium width) with long press support
         val backspaceKey = createBackspaceButton()
         backspaceKey.layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1.5f)
         thirdRow.addView(backspaceKey)
@@ -312,19 +288,16 @@ class NeuroKeyboardView @JvmOverloads constructor(
             minWidth = 0
             minimumHeight = dpToPx(48)
             
-            // Set up long press detection
-            setOnTouchListener { _, event ->
+            setOnTouchListener { v, event ->
                 when (event.action) {
                     android.view.MotionEvent.ACTION_DOWN -> {
                         startContinuousBackspace()
-                        true
                     }
                     android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
                         stopContinuousBackspace()
-                        true
                     }
-                    else -> false
                 }
+                v.performClick()
             }
         }
     }
@@ -443,15 +416,15 @@ class NeuroKeyboardView @JvmOverloads constructor(
     }
     
     fun updateSuggestions(suggestions: List<String>) {
-        suggestionsRow.updateSuggestions(suggestions)
+        llmSuggestionsRow.updateSuggestions(suggestions)
     }
     
     fun showLoadingSuggestions(estimatedDurationMs: Long = 2500L) {
-        suggestionsRow.showLoadingProgress(estimatedDurationMs)
+        llmSuggestionsRow.showLoadingProgress(estimatedDurationMs)
     }
     
     fun updateSuggestionsProgress(progress: Int) {
-        suggestionsRow.updateProgress(progress)
+        llmSuggestionsRow.updateProgress(progress)
     }
     
     private fun dpToPx(dp: Int): Int {
