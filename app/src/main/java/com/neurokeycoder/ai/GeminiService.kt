@@ -37,7 +37,6 @@ class GeminiService(private val context: Context) {
     }
     
     fun setApiKey(apiKey: String) {
-        Log.d(TAG, "Setting new API key (length: ${apiKey.length})")
         prefs.edit().putString(API_KEY_PREF, apiKey).apply()
         initializeModel()
     }
@@ -47,8 +46,6 @@ class GeminiService(private val context: Context) {
     }
     
     suspend fun getCppSuggestions(context: String): List<String> = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Getting C++ suggestions for context: '$context'")
-        Log.d(TAG, "Context length: ${context.length} characters")
         
         try {
             val model = generativeModel ?: run {
@@ -57,19 +54,15 @@ class GeminiService(private val context: Context) {
             }
             
             val prompt = buildPrompt(context)
-            Log.d(TAG, "Built prompt for Gemini API")
             
             val response: GenerateContentResponse = model.generateContent(prompt)
-            Log.d(TAG, "Received response from Gemini API: ${response.text}")
             
             val suggestions = parseSuggestions(response.text ?: "")
-            Log.d(TAG, "Parsed suggestions: $suggestions")
             
             return@withContext suggestions
         } catch (e: Exception) {
             Log.e(TAG, "Error getting suggestions from Gemini API", e)
             val fallbackSuggestions = getFallbackSuggestions(context)
-            Log.d(TAG, "Using fallback suggestions: $fallbackSuggestions")
             return@withContext fallbackSuggestions
         }
     }
@@ -94,23 +87,19 @@ Suggestions:
     }
     
     private fun parseSuggestions(response: String): List<String> {
-        Log.d(TAG, "Parsing suggestions from response: '$response'")
         
         val suggestions = response.lines()
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("Suggestions:") }
             .take(5)
             .ifEmpty { 
-                Log.d(TAG, "No valid suggestions found in response, using fallback")
                 getFallbackSuggestions("") 
             }
         
-        Log.d(TAG, "Final parsed suggestions: $suggestions")
         return suggestions
     }
     
     private fun getFallbackSuggestions(context: String): List<String> {
-        Log.d(TAG, "Getting fallback suggestions for context: '$context'")
         
         // Analyze context for smarter fallbacks
         val contextLower = context.lowercase()
@@ -141,12 +130,10 @@ Suggestions:
                 listOf("<iostream>", "<vector>", "<string>", "<algorithm>", "<memory>")
             }
             else -> {
-                // General C++ suggestions
                 listOf("void", "int", "auto", "const", "return")
             }
         }
         
-        Log.d(TAG, "Generated fallback suggestions: $suggestions")
         return suggestions
     }
     

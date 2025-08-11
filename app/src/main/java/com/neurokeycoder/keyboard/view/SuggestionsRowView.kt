@@ -2,7 +2,6 @@ package com.neurokeycoder.keyboard.view
 
 import android.content.Context
 import android.util.AttributeSet
-import android.util.Log
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
@@ -32,7 +31,6 @@ class SuggestionsRowView @JvmOverloads constructor(
     private var estimatedDuration: Long = 2500 // 2.5 seconds default
     
     companion object {
-        private const val TAG = "SuggestionsRowView"
         private const val DEFAULT_DURATION_MS = 2500L // 2.5 seconds
         private const val PROGRESS_UPDATE_INTERVAL = 50L // Update every 50ms for smooth animation
     }
@@ -97,14 +95,12 @@ class SuggestionsRowView @JvmOverloads constructor(
     }
     
     fun updateSuggestions(suggestions: List<String>) {
-        Log.d(TAG, "Updating suggestions: $suggestions")
         
         // Remove existing suggestion buttons
         suggestionButtons.forEach { removeView(it) }
         suggestionButtons.clear()
         
         if (suggestions.isEmpty()) {
-            Log.d(TAG, "No suggestions provided, showing placeholder")
             showPlaceholder()
             return
         }
@@ -113,13 +109,11 @@ class SuggestionsRowView @JvmOverloads constructor(
         
         // Create buttons for each suggestion
         suggestions.take(5).forEach { suggestion ->
-            Log.d(TAG, "Creating button for suggestion: '$suggestion'")
             val button = createSuggestionButton(suggestion)
             suggestionButtons.add(button)
             addView(button)
         }
         
-        Log.d(TAG, "Created ${suggestionButtons.size} suggestion buttons")
     }
     
     private fun createSuggestionButton(text: String): Button {
@@ -143,7 +137,6 @@ class SuggestionsRowView @JvmOverloads constructor(
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             
             setOnClickListener {
-                Log.d(TAG, "Suggestion clicked: '$text' - will trigger smart replacement")
                 onSuggestionClickListener?.invoke(text)
             }
         }
@@ -170,7 +163,6 @@ class SuggestionsRowView @JvmOverloads constructor(
     }
     
     fun showLoadingProgress(estimatedDurationMs: Long = DEFAULT_DURATION_MS) {
-        Log.d(TAG, "Starting progress bar with estimated duration: ${estimatedDurationMs}ms")
         
         // Remove existing buttons
         suggestionButtons.forEach { removeView(it) }
@@ -191,14 +183,12 @@ class SuggestionsRowView @JvmOverloads constructor(
     }
     
     fun hideLoadingProgress() {
-        Log.d(TAG, "Hiding progress bar")
         stopProgressAnimation()
         loadingContainer.visibility = GONE
     }
     
     fun updateProgress(currentProgress: Int) {
         val clampedProgress = currentProgress.coerceIn(0, 100)
-        Log.d(TAG, "Updating progress to: $clampedProgress% (was ${progressBar.progress}%)")
         
         // Use post to ensure UI thread execution
         post {
@@ -213,27 +203,23 @@ class SuggestionsRowView @JvmOverloads constructor(
     private fun startProgressAnimation() {
         stopProgressAnimation() // Stop any existing animation
         
-        Log.d(TAG, "Starting progress animation with ${PROGRESS_UPDATE_INTERVAL}ms intervals")
         
         progressHandler = Handler(Looper.getMainLooper())
         progressRunnable = object : Runnable {
             override fun run() {
                 if (loadingContainer.visibility != VISIBLE) {
-                    Log.d(TAG, "Loading container not visible, stopping animation")
                     return
                 }
                 
                 val elapsed = System.currentTimeMillis() - startTime
                 val progress = ((elapsed.toFloat() / estimatedDuration) * 100).toInt()
                 
-                Log.d(TAG, "Animation tick: elapsed=${elapsed}ms, progress=$progress%, estimatedDuration=$estimatedDuration")
                 
                 if (progress < 100) {
                     updateProgress(progress)
                     progressHandler?.postDelayed(this, PROGRESS_UPDATE_INTERVAL)
                 } else {
                     // If we reach 100% but still waiting, show a "completing" state
-                    Log.d(TAG, "Progress reached 100%, showing completion state")
                     post {
                         progressBar.progress = 100
                         progressText.text = "Finalizing suggestions..."
