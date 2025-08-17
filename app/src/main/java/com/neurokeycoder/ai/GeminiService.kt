@@ -91,6 +91,9 @@ Suggestions:
         val suggestions = response.lines()
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("Suggestions:") }
+            .map { suggestion ->
+                suggestion.replace(Regex("^#\\d+\\.\\s*"), "")
+            }
             .take(5)
             .ifEmpty { 
                 getFallbackSuggestions("") 
