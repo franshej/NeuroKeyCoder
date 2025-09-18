@@ -2,7 +2,7 @@
 
 A sophisticated Android keyboard specialized for C++ programming, powered by AI and designed to enhance coding productivity.
 
-<iframe src="https://drive.google.com/file/d/1lh0P9nfKWwXgN6GOk-B35E8jx7eGLzFh/preview" width="640" height="480" allow="autoplay"></iframe>
+https://github.com/user-attachments/assets/c7791ddd-ede2-42f5-95b3-c2709ca6f221
 
 ## Core Features
 
