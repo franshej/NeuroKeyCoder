@@ -5,6 +5,7 @@ import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import com.neurokeycoder.ai.GeminiService
+import com.neurokeycoder.keyboard.autocomplete.AutocompleteManager
 import com.neurokeycoder.keyboard.view.NeuroKeyboardView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +21,7 @@ class NeuroKeyboardService : InputMethodService() {
     
     // LLM and context tracking
     private lateinit var geminiService: GeminiService
+    private lateinit var autocompleteManager: AutocompleteManager
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var suggestionJob: Job? = null
     private var typedContext = StringBuilder()
@@ -42,6 +44,7 @@ class NeuroKeyboardService : InputMethodService() {
         super.onCreate()
         inputMethodManager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         geminiService = GeminiService(this)
+        autocompleteManager = AutocompleteManager()
     }
     
     override fun onCreateInputView(): View {
@@ -220,6 +223,9 @@ class NeuroKeyboardService : InputMethodService() {
                 val actualDuration = System.currentTimeMillis() - requestStartTime
                 recordRequestDuration(actualDuration)
                 
+                // Update autocomplete manager with AI suggestions for fuzzy matching
+                autocompleteManager.updateAiSuggestions(suggestions.first, suggestions.second)
+
                 // Update sentence suggestion first (will appear above word suggestions)
                 keyboardView.updateSentenceSuggestion(suggestions.second)
                 keyboardView.updateWordSuggestions(suggestions.first)
@@ -298,26 +304,56 @@ class NeuroKeyboardService : InputMethodService() {
         expectingCursorChange = true // Flag that we're about to change cursor position
         
         try {
+            // Get the current partial word that user has typed
             val currentWord = getCurrentPartialWord()
-            
-            if (currentWord.isNotEmpty() && suggestion.startsWith(currentWord, ignoreCase = true)) {
-                // Smart replacement: delete the partial word and insert the full suggestion
-                val charsToDelete = currentWord.length
-                
-                ic.deleteSurroundingText(charsToDelete, 0)
-                ic.commitText(suggestion, 1)
-                
-                // Update typed context by removing the partial word and adding the suggestion
-                if (typedContext.endsWith(currentWord)) {
-                    typedContext.delete(typedContext.length - currentWord.length, typedContext.length)
-                }
-                typedContext.append(suggestion)
-                
+            val currentLine = getCurrentLine()
+
+            Log.d(TAG, "Smart replacement - Word: '$currentWord', Line: '$currentLine', Suggestion: '$suggestion'")
+
+            // Determine what the user was actually typing (word or line context)
+            val userTyped = if (currentLine.isNotEmpty() && currentLine.length > currentWord.length) {
+                currentLine // User might be typing a sentence/line
             } else {
-                ic.commitText(suggestion, 1)
-                typedContext.append(suggestion)
+                currentWord // User is typing a word
             }
-            
+
+            // Find the best matching suggestion using fuzzy matching
+            val matchingSuggestion = autocompleteManager.findBestMatchingSuggestion(userTyped, suggestion)
+
+            Log.d(TAG, "Found matching suggestion - Type: ${if (matchingSuggestion.isSentence) "sentence" else "word"}, Similarity: ${matchingSuggestion.similarity}")
+
+            // Get current cursor position - it's the length of text before cursor
+            val textBeforeCursor = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
+            val cursorPos = textBeforeCursor.length
+
+            // Get full text from input field
+            val textAfterCursor = ic.getTextAfterCursor(1000, 0)?.toString() ?: ""
+            val fullText = textBeforeCursor + textAfterCursor
+
+            // Apply smart replacement based on whether it's a sentence or word
+            val (newText, newCursorPos) = autocompleteManager.applySuggestion(
+                fullText,
+                cursorPos,
+                matchingSuggestion
+            )
+
+            // Calculate how much text to delete and what to insert
+            val charsToDelete = cursorPos - (newCursorPos - matchingSuggestion.corrected.length)
+
+            // Delete the old text and insert the new suggestion
+            ic.beginBatchEdit()
+            ic.deleteSurroundingText(charsToDelete, 0)
+            ic.commitText(matchingSuggestion.corrected, 1)
+            ic.endBatchEdit()
+
+            // Update typed context
+            if (charsToDelete > 0 && typedContext.length >= charsToDelete) {
+                typedContext.delete(typedContext.length - charsToDelete, typedContext.length)
+            }
+            typedContext.append(matchingSuggestion.corrected)
+
+            Log.d(TAG, "Applied smart replacement - Deleted: $charsToDelete, Inserted: '${matchingSuggestion.corrected}'")
+
             // Keep context within reasonable length
             if (typedContext.length > MAX_CONTEXT_LENGTH) {
                 typedContext.delete(0, typedContext.length - MAX_CONTEXT_LENGTH)
@@ -327,61 +363,83 @@ class NeuroKeyboardService : InputMethodService() {
             if (suggestion.contains(" ")) {
                 requestSuggestions()
             }
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Error applying suggestion with smart replacement", e)
             // Fallback to regular insertion
             expectingCursorChange = true
             ic.commitText(suggestion, 1)
             typedContext.append(suggestion)
-            
+
             // Check if this suggestion contains a space (indicating C++ keyword button)
             if (suggestion.contains(" ")) {
                 requestSuggestions()
             }
         }
     }
-    
+
+    private fun getCurrentLine(): String {
+        val ic = currentInputConnection ?: return ""
+
+        try {
+            val textBeforeCursor = ic.getTextBeforeCursor(200, 0) ?: return ""
+
+            // Find the current line (from last newline to cursor)
+            val lastNewline = textBeforeCursor.lastIndexOf('\n')
+            val currentLine = if (lastNewline == -1) {
+                textBeforeCursor.toString()
+            } else {
+                textBeforeCursor.substring(lastNewline + 1)
+            }
+
+            return currentLine.trim()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting current line", e)
+            return ""
+        }
+    }
+
     private fun getCurrentPartialWord(): String {
         val ic = currentInputConnection ?: return ""
-        
+
         try {
             val textBeforeCursor = ic.getTextBeforeCursor(50, 0) ?: return ""
-            
+
             // Find the last word (sequence of letters/numbers/underscores)
             val wordPattern = Regex("[a-zA-Z_][a-zA-Z0-9_]*$")
             val match = wordPattern.find(textBeforeCursor)
             val currentWord = match?.value ?: ""
-            
+
             return currentWord
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Error getting current partial word", e)
             return ""
         }
     }
-    
+
     private fun getCurrentWordLength(): Int {
         val ic = currentInputConnection ?: return 0
-        
+
         try {
             val textBeforeCursor = ic.getTextBeforeCursor(50, 0) ?: return 0
-            
+
             // Find the last word (sequence of letters/numbers/underscores)
             val wordPattern = Regex("[a-zA-Z_][a-zA-Z0-9_]*$")
             val match = wordPattern.find(textBeforeCursor)
             val currentWordLength = match?.value?.length ?: 0
-            
+
             return currentWordLength
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Error getting current word length", e)
             return 0
         }
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         suggestionJob?.cancel()
     }
-} 
+}
