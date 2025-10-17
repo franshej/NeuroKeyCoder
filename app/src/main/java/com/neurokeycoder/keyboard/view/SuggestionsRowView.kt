@@ -2,6 +2,7 @@ package com.neurokeycoder.keyboard.view
 
 import android.content.Context
 import android.util.AttributeSet
+import android.util.Log
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
@@ -20,9 +21,11 @@ class SuggestionsRowView @JvmOverloads constructor(
     
     private var onSuggestionClickListener: ((String) -> Unit)? = null
     private val suggestionButtons = mutableListOf<Button>()
+    private var suggestionSentenceButton: Button? = null
     private val loadingContainer: LinearLayout
     private val progressBar: ProgressBar
     private val progressText: TextView
+    private val wordSuggestionsRow: LinearLayout
     
     // Progress tracking
     private var progressHandler: Handler? = null
@@ -31,12 +34,13 @@ class SuggestionsRowView @JvmOverloads constructor(
     private var estimatedDuration: Long = 2500 // 2.5 seconds default
     
     companion object {
+        private const val TAG = "SuggestionsRowView"
         private const val DEFAULT_DURATION_MS = 2500L // 2.5 seconds
         private const val PROGRESS_UPDATE_INTERVAL = 50L // Update every 50ms for smooth animation
     }
     
     init {
-        orientation = HORIZONTAL
+        orientation = VERTICAL  // Changed to VERTICAL to stack sentence above words
         layoutParams = LayoutParams(
             LayoutParams.MATCH_PARENT,
             LayoutParams.WRAP_CONTENT
@@ -90,14 +94,68 @@ class SuggestionsRowView @JvmOverloads constructor(
         loadingContainer.addView(progressText)
         addView(loadingContainer)
         
-        // Initialize with empty suggestions
-        updateSuggestions(emptyList())
+        // Create horizontal container for word suggestions
+        wordSuggestionsRow = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            layoutParams = LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT
+            )
+        }
+        addView(wordSuggestionsRow)
+        
+        updateWordSuggestions(emptyList())
+    }
+
+    fun updateSentenceSuggestion(sentence: String) {
+        Log.d(TAG, "updateSentenceSuggestion called with: '$sentence'")
+        
+        // Remove previous sentence button if it exists
+        suggestionSentenceButton?.let { removeView(it) }
+        suggestionSentenceButton = null
+        
+        // Don't create a button if sentence is empty
+        if (sentence.isEmpty()) {
+            Log.d(TAG, "Sentence is empty, not creating button")
+            return
+        }
+
+        // Create a full-width button for the line suggestion
+        suggestionSentenceButton = Button(context).apply {
+            this.text = sentence
+            layoutParams = LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(4, 2, 4, 2)
+            }
+            
+            // Styling for line suggestion - make it distinct from word suggestions
+            setBackgroundResource(R.drawable.special_key_background)
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(context, R.color.special_key_text))
+            minHeight = 0
+            minWidth = 0
+            minimumHeight = dpToPx(44)
+            typeface = android.graphics.Typeface.MONOSPACE
+            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
+            
+            setOnClickListener {
+                onSuggestionClickListener?.invoke(sentence)
+            }
+        }
+        
+        // Insert between loading container and word suggestions row
+        // Index 1 is after loading container (index 0), before word suggestions row (index 2)
+        val insertIndex = indexOfChild(wordSuggestionsRow)
+        addView(suggestionSentenceButton, insertIndex)
+        Log.d(TAG, "Sentence button created and added at index $insertIndex")
     }
     
-    fun updateSuggestions(suggestions: List<String>) {
-        
-        // Remove existing suggestion buttons
-        suggestionButtons.forEach { removeView(it) }
+    fun updateWordSuggestions(suggestions: List<String>) {
+        // Clear existing buttons from the word suggestions row
+        suggestionButtons.forEach { wordSuggestionsRow.removeView(it) }
         suggestionButtons.clear()
         
         if (suggestions.isEmpty()) {
@@ -107,13 +165,12 @@ class SuggestionsRowView @JvmOverloads constructor(
         
         hideLoadingProgress()
         
-        // Create buttons for each suggestion
+        // Create buttons for each suggestion and add to word suggestions row
         suggestions.take(5).forEach { suggestion ->
             val button = createSuggestionButton(suggestion)
             suggestionButtons.add(button)
-            addView(button)
+            wordSuggestionsRow.addView(button)
         }
-        
     }
     
     private fun createSuggestionButton(text: String): Button {
@@ -143,7 +200,7 @@ class SuggestionsRowView @JvmOverloads constructor(
     }
     
     private fun showPlaceholder() {
-        // Show a single placeholder button
+        // Show a single placeholder button in the word suggestions row
         val placeholderButton = Button(context).apply {
             text = "AI Suggestions"
             layoutParams = LayoutParams(
@@ -159,16 +216,18 @@ class SuggestionsRowView @JvmOverloads constructor(
             isEnabled = false
         }
         suggestionButtons.add(placeholderButton)
-        addView(placeholderButton)
+        wordSuggestionsRow.addView(placeholderButton)
     }
     
     fun showLoadingProgress(estimatedDurationMs: Long = DEFAULT_DURATION_MS) {
-        
-        // Remove existing buttons
-        suggestionButtons.forEach { removeView(it) }
+        // Clear word suggestions
+        suggestionButtons.forEach { wordSuggestionsRow.removeView(it) }
         suggestionButtons.clear()
         
-        // Reset progress
+        // Also remove sentence suggestion while loading
+        suggestionSentenceButton?.let { removeView(it) }
+        suggestionSentenceButton = null
+
         post {
             progressBar.progress = 0
             progressText.text = "Starting AI suggestions..."
@@ -202,8 +261,7 @@ class SuggestionsRowView @JvmOverloads constructor(
     
     private fun startProgressAnimation() {
         stopProgressAnimation() // Stop any existing animation
-        
-        
+
         progressHandler = Handler(Looper.getMainLooper())
         progressRunnable = object : Runnable {
             override fun run() {
@@ -219,7 +277,6 @@ class SuggestionsRowView @JvmOverloads constructor(
                     updateProgress(progress)
                     progressHandler?.postDelayed(this, PROGRESS_UPDATE_INTERVAL)
                 } else {
-                    // If we reach 100% but still waiting, show a "completing" state
                     post {
                         progressBar.progress = 100
                         progressText.text = "Finalizing suggestions..."

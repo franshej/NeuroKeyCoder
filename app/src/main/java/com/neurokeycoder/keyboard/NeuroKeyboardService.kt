@@ -6,6 +6,7 @@ import android.view.View
 import android.view.inputmethod.InputMethodManager
 import com.neurokeycoder.ai.GeminiService
 import com.neurokeycoder.keyboard.view.NeuroKeyboardView
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -181,7 +182,7 @@ class NeuroKeyboardService : InputMethodService() {
     }
     
     /**
-     * Requests LLM suggestions immediately (debounce only cancels previous requests).
+     * Requests LLM suggestions if no request is currently in progress.
      * Called for:
      * 1. Cursor movement (onUpdateSelection)
      * 2. Space key press
@@ -194,11 +195,14 @@ class NeuroKeyboardService : InputMethodService() {
      * NOT called for other regular character input or regular suggestion application.
      */
     private fun requestSuggestions() {
-        // Cancel any pending suggestion request (this is the "debounce" - no waiting!)
-        suggestionJob?.cancel()
+        // Skip if a request is already in progress
+        if (suggestionJob?.isActive == true) {
+            Log.d(TAG, "Suggestion request already in progress, skipping")
+            return
+        }
         
         if (!geminiService.isConfigured()) {
-            keyboardView.updateSuggestions(emptyList())
+            keyboardView.updateWordSuggestions(emptyList())
             return
         }
         
@@ -216,9 +220,17 @@ class NeuroKeyboardService : InputMethodService() {
                 val actualDuration = System.currentTimeMillis() - requestStartTime
                 recordRequestDuration(actualDuration)
                 
-                keyboardView.updateSuggestions(suggestions)
+                // Update sentence suggestion first (will appear above word suggestions)
+                keyboardView.updateSentenceSuggestion(suggestions.second)
+                keyboardView.updateWordSuggestions(suggestions.first)
+            } catch (e: CancellationException) {
+                // Request was cancelled (e.g., keyboard service destroyed)
+                // Don't update UI
+                Log.d(TAG, "Suggestion request cancelled")
             } catch (e: Exception) {
-                keyboardView.updateSuggestions(emptyList())
+                Log.e(TAG, "Error in suggestion request", e)
+                keyboardView.updateSentenceSuggestion("")
+                keyboardView.updateWordSuggestions(emptyList())
             }
         }
     }

@@ -414,9 +414,13 @@ class NeuroKeyboardView @JvmOverloads constructor(
         isSymbolLayout = false
         setupMainLayout()
     }
+
+    fun updateSentenceSuggestion(suggestion: String) {
+        llmSuggestionsRow.updateSentenceSuggestion(suggestion)
+    }
     
-    fun updateSuggestions(suggestions: List<String>) {
-        llmSuggestionsRow.updateSuggestions(suggestions)
+    fun updateWordSuggestions(suggestions: List<String>) {
+        llmSuggestionsRow.updateWordSuggestions(suggestions)
     }
     
     fun showLoadingSuggestions(estimatedDurationMs: Long = 2500L) {
