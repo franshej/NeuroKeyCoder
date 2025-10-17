@@ -75,15 +75,20 @@ class AutocompleteManager {
 
             val similarity = SimilarityCalculator.calculateSimilarity(typingContext, suggestionContext)
 
-            Log.d(TAG, "Sentence match - Similarity: $similarity")
+            Log.d(TAG, "Sentence match - Similarity: $similarity (threshold: $SENTENCE_SIMILARITY_THRESHOLD)")
 
-            if (similarity >= SENTENCE_SIMILARITY_THRESHOLD) {
+            // Check if we should concatenate instead of replace
+            // This happens when the suggestion seems to be a continuation of what the user typed
+            val shouldConcatenate = checkIfShouldConcatenate(userTyped, clickedSuggestion)
+
+            if (similarity >= SENTENCE_SIMILARITY_THRESHOLD || shouldConcatenate) {
                 return AutocompleteSuggestion(
                     original = userTyped,
-                    corrected = clickedSuggestion,
+                    corrected = if (shouldConcatenate) userTyped + clickedSuggestion else clickedSuggestion,
                     similarity = similarity,
                     isAiSuggestion = true,
-                    isSentence = true
+                    isSentence = true,
+                    shouldConcatenate = shouldConcatenate
                 )
             }
         }
@@ -92,7 +97,10 @@ class AutocompleteManager {
         if (clickedSuggestion in aiWordSuggestions) {
             val similarity = SimilarityCalculator.calculateSimilarity(userTyped, clickedSuggestion)
 
-            Log.d(TAG, "AI word match - Similarity: $similarity")
+            Log.d(TAG, "AI word match - Similarity: $similarity (threshold: $WORD_SIMILARITY_THRESHOLD)")
+
+            // Check if we should concatenate for word suggestions too
+            val shouldConcatenate = checkIfShouldConcatenate(userTyped, clickedSuggestion)
 
             if (similarity >= WORD_SIMILARITY_THRESHOLD) {
                 return AutocompleteSuggestion(
@@ -100,7 +108,18 @@ class AutocompleteManager {
                     corrected = clickedSuggestion,
                     similarity = similarity,
                     isAiSuggestion = true,
-                    isSentence = false
+                    isSentence = false,
+                    shouldConcatenate = false
+                )
+            } else if (shouldConcatenate) {
+                // Low similarity but should concatenate (e.g., "proc" + "ess(...)")
+                return AutocompleteSuggestion(
+                    original = userTyped,
+                    corrected = userTyped + clickedSuggestion,
+                    similarity = 0.5f, // Moderate score for concatenation
+                    isAiSuggestion = true,
+                    isSentence = false,
+                    shouldConcatenate = true
                 )
             }
         }
@@ -117,19 +136,86 @@ class AutocompleteManager {
                     corrected = clickedSuggestion,
                     similarity = similarity,
                     isAiSuggestion = false,
-                    isSentence = false
+                    isSentence = false,
+                    shouldConcatenate = false
                 )
             }
         }
 
-        // Default: treat as word suggestion if no special pattern detected
+        // Default: Check if concatenation makes sense for any AI suggestion
+        val isAiSugg = clickedSuggestion in aiWordSuggestions || clickedSuggestion == aiSentenceSuggestion
+        val shouldConcat = if (isAiSugg) checkIfShouldConcatenate(userTyped, clickedSuggestion) else false
+
         return AutocompleteSuggestion(
             original = userTyped,
-            corrected = clickedSuggestion,
-            similarity = 1.0f,
-            isAiSuggestion = clickedSuggestion in aiWordSuggestions || clickedSuggestion == aiSentenceSuggestion,
-            isSentence = isSentence(clickedSuggestion)
+            corrected = if (shouldConcat) userTyped + clickedSuggestion else clickedSuggestion,
+            similarity = if (shouldConcat) 0.5f else 1.0f,
+            isAiSuggestion = isAiSugg,
+            isSentence = isSentence(clickedSuggestion),
+            shouldConcatenate = shouldConcat
         )
+    }
+
+    /**
+     * Determines if the user's typed text and the suggestion should be concatenated.
+     * This is true when:
+     * 1. The suggestion doesn't start with the typed text (low similarity)
+     * 2. But the concatenation would form a meaningful word/phrase
+     *
+     * Example: "proc" + "ess(3.14);" -> "process(3.14);"
+     */
+    private fun checkIfShouldConcatenate(userTyped: String, suggestion: String): Boolean {
+        if (userTyped.isEmpty() || suggestion.isEmpty()) return false
+
+        // If suggestion already contains the typed text, don't concatenate
+        if (suggestion.lowercase().contains(userTyped.lowercase())) {
+            return false
+        }
+
+        // If typed text is very short (1-2 chars), don't concatenate unless it's meaningful
+        if (userTyped.length <= 2 && !suggestion.startsWith("(") && !suggestion.startsWith("[")) {
+            return false
+        }
+
+        // Check if concatenation would form a recognizable pattern
+        val concatenated = userTyped + suggestion
+
+        // Pattern 1: function call pattern (word + parentheses)
+        // e.g., "proc" + "ess(3.14)" = "process(3.14)"
+        if (suggestion.matches(Regex("^[a-z]+\\(.*"))) {
+            return true
+        }
+
+        // Pattern 2: completion of a word followed by operators/punctuation
+        // e.g., "std" + "::vector" = "std::vector"
+        if (suggestion.matches(Regex("^::[a-zA-Z].*"))) {
+            return true
+        }
+
+        // Pattern 3: array access pattern
+        // e.g., "arr" + "[0]" = "arr[0]"
+        if (suggestion.matches(Regex("^\\[.*\\].*"))) {
+            return true
+        }
+
+        // Pattern 4: member access pattern
+        // e.g., "obj" + ".method()" = "obj.method()"
+        if (suggestion.matches(Regex("^\\.[a-zA-Z].*"))) {
+            return true
+        }
+
+        // Pattern 5: Check if the first word of suggestion could complete the typed text
+        // e.g., "proc" + "ess" where suggestion starts with letters that could continue the word
+        val suggestionFirstPart = suggestion.takeWhile { it.isLetterOrDigit() }
+        if (suggestionFirstPart.isNotEmpty() && userTyped.all { it.isLetterOrDigit() }) {
+            // Check if concatenating makes a word that exists in common patterns
+            val potentialWord = userTyped + suggestionFirstPart
+            if (potentialWord.length >= 4) { // Minimum meaningful word length
+                return true
+            }
+        }
+
+        return false
     }
 
     /**

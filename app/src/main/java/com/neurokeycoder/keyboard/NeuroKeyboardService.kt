@@ -320,7 +320,7 @@ class NeuroKeyboardService : InputMethodService() {
             // Find the best matching suggestion using fuzzy matching
             val matchingSuggestion = autocompleteManager.findBestMatchingSuggestion(userTyped, suggestion)
 
-            Log.d(TAG, "Found matching suggestion - Type: ${if (matchingSuggestion.isSentence) "sentence" else "word"}, Similarity: ${matchingSuggestion.similarity}")
+            Log.d(TAG, "Found matching suggestion - Type: ${if (matchingSuggestion.isSentence) "sentence" else "word"}, Similarity: ${matchingSuggestion.similarity}, Concatenate: ${matchingSuggestion.shouldConcatenate}")
 
             // Get current cursor position - it's the length of text before cursor
             val textBeforeCursor = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
@@ -330,15 +330,20 @@ class NeuroKeyboardService : InputMethodService() {
             val textAfterCursor = ic.getTextAfterCursor(1000, 0)?.toString() ?: ""
             val fullText = textBeforeCursor + textAfterCursor
 
-            // Apply smart replacement based on whether it's a sentence or word
-            val (newText, newCursorPos) = autocompleteManager.applySuggestion(
-                fullText,
-                cursorPos,
-                matchingSuggestion
-            )
-
-            // Calculate how much text to delete and what to insert
-            val charsToDelete = cursorPos - (newCursorPos - matchingSuggestion.corrected.length)
+            // If shouldConcatenate is true, the corrected text already includes both parts
+            // So we need to calculate deletion differently
+            val charsToDelete = if (matchingSuggestion.shouldConcatenate) {
+                // For concatenation, only delete what the user typed (it's already in corrected)
+                userTyped.length
+            } else {
+                // For replacement, use the normal logic
+                val (newText, newCursorPos) = autocompleteManager.applySuggestion(
+                    fullText,
+                    cursorPos,
+                    matchingSuggestion
+                )
+                cursorPos - (newCursorPos - matchingSuggestion.corrected.length)
+            }
 
             // Delete the old text and insert the new suggestion
             ic.beginBatchEdit()
