@@ -5,9 +5,11 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.GenerateContentResponse
+import com.google.ai.client.generativeai.type.generationConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 class GeminiService(private val context: Context) {
     
@@ -21,6 +23,8 @@ class GeminiService(private val context: Context) {
         private const val TAG = "GeminiService"
         private const val API_KEY_PREF = ""
         private const val DEFAULT_API_KEY = "YOUR_API_KEY_HERE" // User needs to replace this
+        private const val REQUEST_TIMEOUT_MS = 8000L // 8 seconds timeout
+        private const val MAX_OUTPUT_TOKENS = 150 // Limit response length for speed
     }
     
     init {
@@ -29,11 +33,18 @@ class GeminiService(private val context: Context) {
     
     private fun initializeModel() {
         val apiKey = getApiKey()
-        if (apiKey.isNotEmpty()) {
+        if (apiKey.isNotEmpty() && apiKey != DEFAULT_API_KEY) {
             generativeModel = GenerativeModel(
                 modelName = "gemini-2.0-flash-lite",
-                apiKey = apiKey
+                apiKey = apiKey,
+                generationConfig = generationConfig {
+                    temperature = 0.3f // Lower temperature for more consistent, faster responses
+                    topK = 20 // Limit choices for faster generation
+                    topP = 0.8f
+                    maxOutputTokens = MAX_OUTPUT_TOKENS // Limit output length
+                }
             )
+            Log.d(TAG, "GenerativeModel initialized with optimized config")
         }
     }
     
@@ -55,8 +66,11 @@ class GeminiService(private val context: Context) {
             
             val prompt = buildPrompt(context)
             
-            val response: GenerateContentResponse = model.generateContent(prompt)
-            
+            // Add timeout to prevent hanging indefinitely
+            val response: GenerateContentResponse = withTimeout(REQUEST_TIMEOUT_MS) {
+                model.generateContent(prompt)
+            }
+
             val responseText = response.text ?: ""
             Log.d(TAG, "Raw Gemini response:\n$responseText")
             
@@ -75,6 +89,11 @@ class GeminiService(private val context: Context) {
             Log.d(TAG, "Final sentence: '$finalSentence'")
 
             return@withContext Pair(wordSuggestions, finalSentence)
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            Log.w(TAG, "Gemini API request timed out after ${REQUEST_TIMEOUT_MS}ms")
+            val fallbackSuggestions = getFallbackSuggestions(context)
+            val fallbackSentence = getFallbackSentenceSuggestion(context)
+            return@withContext Pair(fallbackSuggestions, fallbackSentence)
         } catch (e: CancellationException) {
             // Request was cancelled (e.g., coroutine scope cancelled)
             Log.d(TAG, "Suggestion request cancelled")
@@ -88,36 +107,20 @@ class GeminiService(private val context: Context) {
     }
     
     private fun buildPrompt(context: String): String {
-        return """
-You are a C++ code completion assistant. Based on the given code context, suggest exactly 1 complete line of C++ code and 5 single-word completions.
+        // Simplified, more concise prompt for faster processing
+        return """C++ code completion. Context: "$context"
 
-Rules for the 1 line suggestion (FIRST):
-1. Return 1 complete, syntactically valid line of C++ code that would logically follow the context
-2. Examples: "#include <iostream>", "int main() {", "std::vector<int> vec = {1, 2, 3};", "for (int i = 0; i < n; i++) {", "for (auto& item : vec) {", "if (count > 0) {", "while (running) {", "std::cout << result << std::endl;", "return 0;", "auto result = func(x, y);", "std::string name = \"\";", "class MyClass {", "void process() {", "} else {", "break;", "continue;"
-3. The line should be practical and commonly used in C++ programming
-4. Include proper spacing and formatting
-5. End with appropriate punctuation (semicolon, opening brace, etc.)
-6. Prioritize modern C++ patterns (auto, range-based for, smart pointers, STL containers)
+Return 6 lines:
+1. One complete C++ line (e.g., "int main() {", "#include <iostream>", "return 0;")
+2-6. Five single words/symbols (e.g., "void", "int", "auto", "const", "return")
 
-Rules for the 5 word suggestions (AFTER the line):
-1. Return 5 suggestions, each on a new line
-2. Each suggestion must be a single word, symbol, or short expression
-3. Focus on C++ keywords, function names, variable names, operators, or common patterns
-4. Consider the context to make relevant suggestions
-5. Examples: "void", "auto", "const", "return", "if", "else", "int", "float", "->", "::", "std", "cout", "endl", "vector", "string", "nullptr", "true", "false"
-
-Format:
-Line 1: [Complete C++ line]
-Line 2: [Word 1]
-Line 3: [Word 2]
-Line 4: [Word 3]
-Line 5: [Word 4]
-Line 6: [Word 5]
-
-Context: "$context"
-
-Suggestions:
-        """.trimIndent()
+Format (no labels, just the suggestions):
+[line]
+[word1]
+[word2]
+[word3]
+[word4]
+[word5]""".trimIndent()
     }
     
     private fun parseWordSuggestions(response: String): List<String> {
@@ -128,20 +131,31 @@ Suggestions:
                 !line.startsWith("Suggestions:", ignoreCase = true) &&
                 !line.startsWith("Format:", ignoreCase = true) &&
                 !line.startsWith("Context:", ignoreCase = true) &&
-                !line.startsWith("Rules", ignoreCase = true)
+                !line.startsWith("Rules", ignoreCase = true) &&
+                !line.startsWith("```", ignoreCase = true) && // Filter code block markers
+                !line.endsWith("```", ignoreCase = true) &&
+                line != "cpp" && // Filter language identifiers
+                line != "c++"
             }
             .map { suggestion ->
                 // Remove common prefixes like "1.", "#1", "Word 1:", "Line 1:", etc.
                 suggestion.replace(Regex("^(#?\\d+\\.?\\s*|Word\\s*\\d+:\\s*|Line\\s*\\d+:\\s*)", RegexOption.IGNORE_CASE), "").trim()
             }
+            .map { it.trim('`', '"', '\'') } // Remove code block markers and quotes
             .filter { it.isNotEmpty() }
         
-        // Skip the first line (sentence suggestion) and take the next 5 for word suggestions
-        val suggestions = lines.drop(1).take(5)
-            .ifEmpty { 
-                getFallbackSuggestions("") 
-            }
-        
+        // Skip the first line (sentence suggestion) and take the next lines for word suggestions
+        val wordCandidates = lines.drop(1)
+            .filter { it.length <= 18 } // Word suggestions must be max 18 characters
+            .take(5)
+
+        // If we don't have enough valid word suggestions, use fallbacks
+        val suggestions = if (wordCandidates.size >= 3) {
+            wordCandidates
+        } else {
+            getFallbackSuggestions("")
+        }
+
         return suggestions
     }
 
@@ -153,18 +167,42 @@ Suggestions:
                 !line.startsWith("Suggestions:", ignoreCase = true) &&
                 !line.startsWith("Format:", ignoreCase = true) &&
                 !line.startsWith("Context:", ignoreCase = true) &&
-                !line.startsWith("Rules", ignoreCase = true)
+                !line.startsWith("Rules", ignoreCase = true) &&
+                !line.startsWith("```", ignoreCase = true) && // Filter code block markers
+                !line.endsWith("```", ignoreCase = true) &&
+                line != "cpp" && // Filter language identifiers
+                line != "c++"
             }
             .map { suggestion ->
                 // Remove common prefixes like "1.", "#1", "Line 1:", etc.
                 suggestion.replace(Regex("^(#?\\d+\\.?\\s*|Line\\s*\\d+:\\s*)", RegexOption.IGNORE_CASE), "").trim()
             }
+            .map { it.trim('`', '"', '\'') } // Remove code block markers and quotes
             .filter { it.isNotEmpty() }
         
         // First line is the sentence/line suggestion
         val firstLine = lines.firstOrNull() ?: ""
         
-        // If the first line looks like it might be wrapped in brackets or quotes, clean it up
+        // Validate that it's actually a useful sentence (not just a word)
+        // A valid sentence should be at least 5 characters and contain useful C++ syntax
+        if (firstLine.length < 5 || firstLine.length > 100) {
+            return "" // Too short or too long, return empty to trigger fallback
+        }
+
+        // Filter out common useless responses
+        val uselessPatterns = listOf(
+            "```",
+            "code",
+            "suggestion",
+            "example",
+            "here",
+            "following"
+        )
+
+        if (uselessPatterns.any { firstLine.lowercase().contains(it) }) {
+            return "" // Useless response, trigger fallback
+        }
+
         return firstLine.trim()
             .removePrefix("[")
             .removeSuffix("]")
