@@ -19,6 +19,20 @@ class GeminiService(private val context: Context) {
     
     private var generativeModel: GenerativeModel? = null
     
+    // System instruction to be prepended to prompts for consistent behavior
+    private val systemInstruction = """You are a C++ code completion assistant.
+Return exactly 6 lines:
+Line 1: One complete C++ statement or line (e.g., "int main() {", "#include <iostream>", "return 0;")
+Lines 2-6: Five single words/symbols (max 18 characters each, e.g., "void", "int", "const", "return", "{")
+
+Rules:
+- No labels, numbering, or explanations
+- No markdown code blocks (no ```)
+- Just plain text suggestions
+- One suggestion per line
+
+"""
+
     companion object {
         private const val TAG = "GeminiService"
         private const val API_KEY_PREF = ""
@@ -107,20 +121,10 @@ class GeminiService(private val context: Context) {
     }
     
     private fun buildPrompt(context: String): String {
-        // Simplified, more concise prompt for faster processing
-        return """C++ code completion. Context: "$context"
-
-Return 6 lines:
-1. One complete C++ line (e.g., "int main() {", "#include <iostream>", "return 0;")
-2-6. Five single words/symbols (e.g., "void", "int", "auto", "const", "return")
-
-Format (no labels, just the suggestions):
-[line]
-[word1]
-[word2]
-[word3]
-[word4]
-[word5]""".trimIndent()
+        // Extract last 5 lines + current incomplete token
+        val lines = context.lines()
+        val relevantContext = lines.takeLast(5).joinToString("\n")
+        return systemInstruction + "Complete this C++ code:\n$relevantContext"
     }
     
     private fun parseWordSuggestions(response: String): List<String> {
